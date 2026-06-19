@@ -1,53 +1,57 @@
-const sqlite3 = require('sqlite3').verbose();
+const { Pool } = require('pg');
 const path = require('path');
 
-const dbPath = path.join(__dirname, 'sharadha.db');
-
-const db = new sqlite3.Database(dbPath, (err) => {
-  if (err) {
-    console.error('Could not connect to database:', err.message);
-  } else {
-    console.log('Connected to the SQLite database.');
-  }
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
 });
 
-// Helper functions to wrap sqlite3 with promises
+pool.on('error', (err) => {
+  console.error('Unexpected error on idle client', err);
+  process.exit(-1);
+});
+
+// Helper functions to wrap pg with the same interface as our old sqlite3 wrapper
 const query = {
-  run(sql, params = []) {
-    return new Promise((resolve, reject) => {
-      db.run(sql, params, function (err) {
-        if (err) reject(err);
-        else resolve({ id: this.lastID, changes: this.changes });
-      });
-    });
+  async run(sql, params = []) {
+    let pgSql = sql;
+    let index = 1;
+    // Replace ? with $1, $2, etc.
+    pgSql = pgSql.replace(/\?/g, () => `$${index++}`);
+
+    // If it's an insert, try to return the ID so the old interface works
+    if (pgSql.trim().toUpperCase().startsWith('INSERT') && !pgSql.toUpperCase().includes('RETURNING')) {
+      pgSql += ' RETURNING id';
+    }
+
+    const res = await pool.query(pgSql, params);
+    
+    let id = null;
+    if (res.rows && res.rows.length > 0 && res.rows[0].id) {
+      id = res.rows[0].id;
+    }
+
+    return { id, changes: res.rowCount };
   },
 
-  get(sql, params = []) {
-    return new Promise((resolve, reject) => {
-      db.get(sql, params, (err, row) => {
-        if (err) reject(err);
-        else resolve(row);
-      });
-    });
+  async get(sql, params = []) {
+    let pgSql = sql;
+    let index = 1;
+    pgSql = pgSql.replace(/\?/g, () => `$${index++}`);
+    const res = await pool.query(pgSql, params);
+    return res.rows[0] || null;
   },
 
-  all(sql, params = []) {
-    return new Promise((resolve, reject) => {
-      db.all(sql, params, (err, rows) => {
-        if (err) reject(err);
-        else resolve(rows);
-      });
-    });
+  async all(sql, params = []) {
+    let pgSql = sql;
+    let index = 1;
+    pgSql = pgSql.replace(/\?/g, () => `$${index++}`);
+    const res = await pool.query(pgSql, params);
+    return res.rows;
   },
 
-  exec(sql) {
-    return new Promise((resolve, reject) => {
-      db.exec(sql, (err) => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
+  async exec(sql) {
+    return await pool.query(sql);
   }
 };
 
-module.exports = { db, query };
+module.exports = { db: pool, query };

@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 const bcrypt = require('bcryptjs');
 const { query } = require('./db');
 
@@ -14,7 +15,7 @@ async function init() {
 
     // Check if we already have users (to avoid double seeding)
     const userCount = await query.get('SELECT COUNT(*) as count FROM users');
-    if (userCount.count > 0) {
+    if (parseInt(userCount.count) > 0) {
       console.log('Database already initialized. Skipping seed.');
       process.exit(0);
     }
@@ -266,15 +267,15 @@ async function init() {
     // 8. Seed Notifications
     await query.run(
       'INSERT INTO notifications (user_id, message, type, is_read) VALUES (?, ?, ?, ?)',
-      [customerUser.id, 'Welcome to Sharadha Subscription Order System! Complete your profile to get personalized recommendations.', 'info', 0]
+      [customerUser.id, 'Welcome to Sharadha Subscription Order System! Complete your profile to get personalized recommendations.', 'info', false]
     );
     await query.run(
       'INSERT INTO notifications (user_id, message, type, is_read) VALUES (?, ?, ?, ?)',
-      [customerUser.id, 'Your subscription for Pure Cow Ghee will renew in 5 days.', 'reminder', 0]
+      [customerUser.id, 'Your subscription for Pure Cow Ghee will renew in 5 days.', 'reminder', false]
     );
     await query.run(
       'INSERT INTO notifications (user_id, message, type, is_read) VALUES (?, ?, ?, ?)',
-      [adminUser.id, 'ALERT: Idli Milagai Podi BATCH-1-01 stock is low (12 items remaining).', 'alert', 0]
+      [adminUser.id, 'ALERT: Idli Milagai Podi BATCH-1-01 stock is low (12 items remaining).', 'alert', false]
     );
 
     console.log('Notifications seeded.');
