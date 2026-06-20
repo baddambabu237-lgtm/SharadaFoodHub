@@ -119,7 +119,7 @@ router.post('/bulk', authenticateToken, async (req, res) => {
         [product.id]
       );
       if (totalStock.total < 15) {
-        const admins = await query.all('SELECT id FROM users WHERE role = "admin"');
+        const admins = await query.all("SELECT id FROM users WHERE role = 'admin'");
         for (const admin of admins) {
           await query.run(
             'INSERT INTO notifications (user_id, message, type) VALUES (?, ?, ?)',
@@ -227,7 +227,7 @@ router.post('/', authenticateToken, async (req, res) => {
       [product_id]
     );
     if (totalStockPost.total < 15) {
-      const admins = await query.all('SELECT id FROM users WHERE role = "admin"');
+      const admins = await query.all("SELECT id FROM users WHERE role = 'admin'");
       for (const admin of admins) {
         await query.run(
           'INSERT INTO notifications (user_id, message, type) VALUES (?, ?, ?)',

@@ -33,11 +33,11 @@ router.get('/', authenticateToken, async (req, res) => {
       // Recommendation based on category
       if (categoriesBought.includes('Podi')) {
         // Recommend Ghee
-        recommendedProducts = await query.all('SELECT p.* FROM products p JOIN categories c ON p.category_id = c.id WHERE c.name = "Ghee" LIMIT 2');
+        recommendedProducts = await query.all("SELECT p.* FROM products p JOIN categories c ON p.category_id = c.id WHERE c.name = 'Ghee' LIMIT 2");
         reason = 'Spicy Podis taste best with pure ghee. Check out our homemade ghee options!';
       } else if (categoriesBought.includes('Ghee')) {
         // Recommend Applam
-        recommendedProducts = await query.all('SELECT p.* FROM products p JOIN categories c ON p.category_id = c.id WHERE c.name = "Applam" LIMIT 2');
+        recommendedProducts = await query.all("SELECT p.* FROM products p JOIN categories c ON p.category_id = c.id WHERE c.name = 'Applam' LIMIT 2");
         reason = 'Pair your ghee-soaked rice with our crispy, sun-dried traditional applams!';
       } else {
         // Default to any product they haven't bought yet
@@ -77,7 +77,7 @@ router.get('/', authenticateToken, async (req, res) => {
     if (purchasedProductIds.length > 0) {
       insights.push(`You have purchased from ${categoriesBought.join(', ')} categories. Your most-visited category is "${categoriesBought[0] || 'Podi'}".`);
       
-      const activeSubs = await query.get('SELECT COUNT(*) as count FROM subscriptions WHERE customer_id = ? AND status = "active"', [customer_id]);
+      const activeSubs = await query.get("SELECT COUNT(*) as count FROM subscriptions WHERE customer_id = ? AND status = 'active'", [customer_id]);
       if (activeSubs.count > 0) {
         insights.push(`With ${activeSubs.count} active subscription(s), you save an estimated 15% on shipping and automated dispatch processing compared to one-time orders!`);
       } else {
@@ -91,7 +91,7 @@ router.get('/', authenticateToken, async (req, res) => {
     let reminderMessage = 'Hi there! We are preparing your fresh batch of homemade food. Keep your address updated for a smooth delivery! - Team Sharadha.';
     if (purchasedProductIds.length > 0) {
       const activeSub = await query.get(
-        'SELECT s.*, p.name as product_name FROM subscriptions s JOIN products p ON s.product_id = p.id WHERE s.customer_id = ? AND s.status = "active" LIMIT 1',
+        "SELECT s.*, p.name as product_name FROM subscriptions s JOIN products p ON s.product_id = p.id WHERE s.customer_id = ? AND s.status = 'active' LIMIT 1",
         [customer_id]
       );
       if (activeSub) {

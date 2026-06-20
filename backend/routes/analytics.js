@@ -7,28 +7,28 @@ const { authenticateToken, isAdmin } = require('../middleware/auth');
 router.get('/stats', authenticateToken, isAdmin, async (req, res) => {
   try {
     // 1. KPI Overview Card Metrics
-    const customersCount = await query.get('SELECT COUNT(*) as count FROM users WHERE role = "customer"');
-    const activeSubsCount = await query.get('SELECT COUNT(*) as count FROM subscriptions WHERE status = "active"');
-    const pendingDispatchesCount = await query.get('SELECT COUNT(*) as count FROM dispatches WHERE dispatch_status = "pending"');
-    const totalOrdersCount = await query.get('SELECT COUNT(*) as count FROM orders');
-    const cancelledOrdersCount = await query.get('SELECT COUNT(*) as count FROM orders WHERE status = "cancelled"');
+    const customersCount = await query.get("SELECT COUNT(*) as count FROM users WHERE role = 'customer'");
+    const activeSubsCount = await query.get("SELECT COUNT(*) as count FROM subscriptions WHERE status = 'active'");
+    const pendingDispatchesCount = await query.get("SELECT COUNT(*) as count FROM dispatches WHERE dispatch_status = 'pending'");
+    const totalOrdersCount = await query.get("SELECT COUNT(*) as count FROM orders");
+    const cancelledOrdersCount = await query.get("SELECT COUNT(*) as count FROM orders WHERE status = 'cancelled'");
     
     // Revenue last 30 days
     const revenue30Days = await query.get(`
       SELECT SUM(total_amount) as total 
       FROM orders 
-      WHERE order_date >= datetime('now', '-30 days') AND status != 'cancelled'
+      WHERE order_date >= NOW() - INTERVAL '30 days' AND status != 'cancelled'
     `);
 
     // 2. Sales Trend (Revenue over last 6 months - Real month grouping + default baseline)
     const monthlySales = await query.all(`
       SELECT 
-        strftime('%m', order_date) as month_num,
+        TO_CHAR(order_date, 'MM') as month_num,
         SUM(total_amount) as revenue,
         COUNT(*) as orders_count
       FROM orders
       WHERE status != 'cancelled'
-      GROUP BY month_num
+      GROUP BY TO_CHAR(order_date, 'MM')
     `);
 
     const juneSales = monthlySales.find(s => s.month_num === '06') || { revenue: 0, orders_count: 0 };

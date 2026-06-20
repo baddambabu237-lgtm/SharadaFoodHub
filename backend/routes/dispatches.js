@@ -72,15 +72,15 @@ router.put('/:id', authenticateToken, isAdmin, async (req, res) => {
         
         // Update order status if status changed
         if (dispatch_status === 'delivered') {
-          await query.run('UPDATE orders SET status = "delivered" WHERE id = ?', [orderId]);
+          await query.run("UPDATE orders SET status = 'delivered' WHERE id = ?", [orderId]);
         } else if (dispatch_status === 'shipped' || dispatch_status === 'dispatched') {
-          await query.run('UPDATE orders SET status = "dispatched" WHERE id = ?', [orderId]);
+          await query.run("UPDATE orders SET status = 'dispatched' WHERE id = ?", [orderId]);
         } else if (dispatch_status === 'confirmed') {
-          await query.run('UPDATE orders SET status = "confirmed" WHERE id = ?', [orderId]);
+          await query.run("UPDATE orders SET status = 'confirmed' WHERE id = ?", [orderId]);
         } else if (dispatch_status === 'pending') {
-          await query.run('UPDATE orders SET status = "pending" WHERE id = ?', [orderId]);
+          await query.run("UPDATE orders SET status = 'pending' WHERE id = ?", [orderId]);
         } else if (dispatch_status === 'failed') {
-          await query.run('UPDATE orders SET status = "failed" WHERE id = ?', [orderId]);
+          await query.run("UPDATE orders SET status = 'failed' WHERE id = ?", [orderId]);
         }
       }
     }

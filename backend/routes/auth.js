@@ -136,7 +136,7 @@ router.get('/customers', authenticateToken, async (req, res) => {
     if (req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Unauthorized' });
     }
-    const customers = await query.all('SELECT id, name, email, phone, address, role, created_at FROM users WHERE role = "customer"');
+    const customers = await query.all("SELECT id, name, email, phone, address, role, created_at FROM users WHERE role = 'customer'");
     res.status(200).json({ customers });
   } catch (err) {
     console.error('Customers fetch error:', err);

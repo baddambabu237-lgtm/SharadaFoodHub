@@ -2,7 +2,8 @@ const http = require('http');
 const express = require('express');
 const cors = require('cors');
 
-// Import routes and db
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 const authRoutes = require('../routes/auth');
 const productRoutes = require('../routes/products');
 const subscriptionRoutes = require('../routes/subscriptions');
@@ -32,8 +33,7 @@ function stopServer() {
   return new Promise((resolve) => {
     server.close(() => {
       console.log('Test server closed.');
-      db.close(); // Close sqlite connection
-      resolve();
+      db.end().then(resolve); // Close pg connection pool
     });
   });
 }

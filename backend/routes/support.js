@@ -78,7 +78,7 @@ router.post('/tickets', authenticateToken, async (req, res) => {
     );
 
     // Alert admins
-    const admins = await query.all('SELECT id FROM users WHERE role = "admin"');
+    const admins = await query.all("SELECT id FROM users WHERE role = 'admin'");
     for (const admin of admins) {
       await query.run(
         'INSERT INTO notifications (user_id, message, type) VALUES (?, ?, ?)',
