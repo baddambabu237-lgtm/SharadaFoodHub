@@ -42,6 +42,21 @@ const AdminDashboard = () => {
     return <div className="text-center py-20 text-warmgray-400">Loading admin dashboard...</div>;
   }
 
+  if (!stats) {
+    return (
+      <div className="p-6 max-w-7xl mx-auto space-y-6">
+        <div>
+          <h1 className="text-3xl font-extrabold text-warmgray-900 font-display dark:text-white">Admin Control Center</h1>
+          <p className="text-sm text-warmgray-500 dark:text-warmgray-400">System overview, sales analytics, and operational tracking</p>
+        </div>
+        <div className="p-6 text-center text-red-600 bg-red-50 rounded-2xl border border-red-100 dark:bg-red-950/20 dark:text-red-400 dark:border-red-900/30">
+          <p className="font-bold">Error loading dashboard statistics.</p>
+          <p className="text-xs mt-1">Please ensure the backend server is running and database configuration is correct, then refresh the page.</p>
+        </div>
+      </div>
+    );
+  }
+
   const { summary, charts, activityLog } = stats;
 
   return (
