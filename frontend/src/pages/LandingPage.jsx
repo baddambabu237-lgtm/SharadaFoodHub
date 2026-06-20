@@ -59,7 +59,7 @@ const LandingPage = () => {
           <div className="flex-1 w-full max-w-md lg:max-w-none">
             <div className="relative rounded-3xl overflow-hidden shadow-2xl border-4 border-white dark:border-warmgray-800">
               <img
-                src="https://images.unsplash.com/photo-1589301760014-d929f3979dbc?auto=format&fit=crop&q=80&w=600"
+                src="/images/hero_banner.png"
                 alt="Traditional Indian Ghee and Podi spread"
                 className="object-cover w-full h-[350px] lg:h-[450px]"
               />

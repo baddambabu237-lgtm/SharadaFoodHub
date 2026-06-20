@@ -65,7 +65,7 @@ async function init() {
         price: 150,
         weight: '250g',
         shelfLife: 180,
-        img: 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?auto=format&fit=crop&q=80&w=400'
+        img: '/images/product_1.png'
       },
       {
         catName: 'Podi',
@@ -74,7 +74,7 @@ async function init() {
         price: 160,
         weight: '250g',
         shelfLife: 180,
-        img: 'https://images.unsplash.com/photo-1601050690597-df056fb4ce78?auto=format&fit=crop&q=80&w=400'
+        img: '/images/product_2.png'
       },
       {
         catName: 'Pickles',
@@ -83,7 +83,7 @@ async function init() {
         price: 220,
         weight: '500g',
         shelfLife: 270,
-        img: 'https://images.unsplash.com/photo-1601050690597-df056fb4ce78?auto=format&fit=crop&q=80&w=400'
+        img: '/images/product_3.png'
       },
       {
         catName: 'Pickles',
@@ -92,7 +92,7 @@ async function init() {
         price: 200,
         weight: '500g',
         shelfLife: 270,
-        img: 'https://images.unsplash.com/photo-1601050690597-df056fb4ce78?auto=format&fit=crop&q=80&w=400'
+        img: '/images/product_4.png'
       },
       {
         catName: 'Ghee',
@@ -101,7 +101,7 @@ async function init() {
         price: 450,
         weight: '500ml',
         shelfLife: 365,
-        img: 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?auto=format&fit=crop&q=80&w=400'
+        img: '/images/product_5.png'
       },
       {
         catName: 'Ghee',
@@ -110,7 +110,7 @@ async function init() {
         price: 750,
         weight: '500ml',
         shelfLife: 365,
-        img: 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?auto=format&fit=crop&q=80&w=400'
+        img: '/images/product_6.png'
       },
       {
         catName: 'Applam',
@@ -119,7 +119,7 @@ async function init() {
         price: 80,
         weight: '200g',
         shelfLife: 120,
-        img: 'https://images.unsplash.com/photo-1601050690597-df056fb4ce78?auto=format&fit=crop&q=80&w=400'
+        img: '/images/product_7.png'
       },
       {
         catName: 'Applam',
@@ -128,7 +128,7 @@ async function init() {
         price: 80,
         weight: '200g',
         shelfLife: 120,
-        img: 'https://images.unsplash.com/photo-1601050690597-df056fb4ce78?auto=format&fit=crop&q=80&w=400'
+        img: '/images/product_8.png'
       },
       {
         catName: 'Snacks',
@@ -137,7 +137,7 @@ async function init() {
         price: 120,
         weight: '300g',
         shelfLife: 60,
-        img: 'https://images.unsplash.com/photo-1601050690597-df056fb4ce78?auto=format&fit=crop&q=80&w=400'
+        img: '/images/product_9.png'
       },
       {
         catName: 'Snacks',
@@ -146,7 +146,7 @@ async function init() {
         price: 110,
         weight: '300g',
         shelfLife: 60,
-        img: 'https://images.unsplash.com/photo-1601050690597-df056fb4ce78?auto=format&fit=crop&q=80&w=400'
+        img: '/images/product_10.png'
       }
     ];
 
