@@ -9,6 +9,9 @@ CREATE TABLE IF NOT EXISTS users (
     phone TEXT NOT NULL,
     role TEXT CHECK(role IN ('customer', 'admin')) DEFAULT 'customer',
     address TEXT,
+    otp_code TEXT,
+    otp_expiry TIMESTAMP,
+    otp_requested_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -29,6 +32,13 @@ CREATE TABLE IF NOT EXISTS products (
     image_url TEXT,
     weight TEXT,
     shelf_life_days INTEGER NOT NULL,
+    is_trending BOOLEAN DEFAULT false,
+    is_featured BOOLEAN DEFAULT false,
+    is_special_offer BOOLEAN DEFAULT false,
+    discount_percent INTEGER DEFAULT 0,
+    sales_count INTEGER DEFAULT 0,
+    view_count INTEGER DEFAULT 0,
+    trending_score NUMERIC DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
 );
@@ -43,6 +53,10 @@ CREATE TABLE IF NOT EXISTS subscriptions (
     start_date DATE NOT NULL,
     next_dispatch_date DATE NOT NULL,
     last_renewed_date DATE,
+    cancellation_reason TEXT,
+    cancelled_at TIMESTAMP,
+    cancelled_by TEXT,
+    previous_status TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (customer_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
@@ -56,6 +70,9 @@ CREATE TABLE IF NOT EXISTS orders (
     total_amount NUMERIC NOT NULL,
     status TEXT CHECK(status IN ('pending', 'confirmed', 'dispatched', 'delivered', 'cancelled', 'processing', 'completed')) DEFAULT 'pending',
     cancellation_reason TEXT,
+    cancelled_at TIMESTAMP,
+    cancelled_by TEXT,
+    previous_status TEXT,
     order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (customer_id) REFERENCES users(id) ON DELETE CASCADE
 );

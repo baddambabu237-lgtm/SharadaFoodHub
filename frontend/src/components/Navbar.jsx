@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ShoppingCart, Bell, LogOut, Moon, Sun, User, Utensils } from 'lucide-react';
 import API from '../utils/api';
+import { useToast } from '../utils/ToastContext';
 
 const Navbar = ({ cartCount, toggleDarkMode, isDarkMode }) => {
   const navigate = useNavigate();
+  const toast = useToast();
   const token = localStorage.getItem('sharadha_token');
   const userStr = localStorage.getItem('sharadha_user');
   const user = userStr ? JSON.parse(userStr) : null;
@@ -37,6 +39,25 @@ const Navbar = ({ cartCount, toggleDarkMode, isDarkMode }) => {
       fetchNotifications();
     } catch (err) {
       console.error('Error marking notification as read:', err);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      await API.put('/notifications/read-all');
+      toast.success('✅ All notifications marked as read.');
+      fetchNotifications();
+    } catch (err) {
+      console.error('Error marking all notifications as read:', err);
+    }
+  };
+
+  const handleDeleteNotification = async (id) => {
+    try {
+      await API.delete(`/notifications/${id}`);
+      fetchNotifications();
+    } catch (err) {
+      console.error('Error deleting notification:', err);
     }
   };
 
@@ -79,6 +100,7 @@ const Navbar = ({ cartCount, toggleDarkMode, isDarkMode }) => {
             {/* Cart icon (For customers and guests) */}
             {(!user || user?.role !== 'admin') && (
               <Link
+                id="cart-icon-nav"
                 to="/cart"
                 className="relative p-2 text-warmgray-600 rounded-xl hover:bg-warmgray-50 dark:text-warmgray-300 dark:hover:bg-warmgray-700 transition-colors"
               >
@@ -92,12 +114,20 @@ const Navbar = ({ cartCount, toggleDarkMode, isDarkMode }) => {
             )}
 
             {token && (
-              <Link
-                to={user?.role === 'admin' ? '/admin' : '/dashboard'}
-                className="px-3 py-1.5 text-xs font-bold text-brand-600 bg-brand-50 hover:bg-brand-100 rounded-xl dark:bg-brand-950/40 dark:text-brand-400 transition-colors"
-              >
-                Dashboard
-              </Link>
+              <div className="flex items-center space-x-2">
+                <Link
+                  to={user?.role === 'admin' ? '/admin' : '/dashboard'}
+                  className="px-3 py-1.5 text-xs font-bold text-brand-600 bg-brand-50 hover:bg-brand-100 rounded-xl dark:bg-brand-950/40 dark:text-brand-400 transition-colors"
+                >
+                  Dashboard
+                </Link>
+                <Link
+                  to={user?.role === 'admin' ? '/admin/profile' : '/account'}
+                  className="px-3 py-1.5 text-xs font-bold text-brand-600 bg-brand-50 hover:bg-brand-100 rounded-xl dark:bg-brand-950/40 dark:text-brand-400 transition-colors"
+                >
+                  Profile
+                </Link>
+              </div>
             )}
 
             {token ? (
@@ -107,7 +137,7 @@ const Navbar = ({ cartCount, toggleDarkMode, isDarkMode }) => {
                 <div className="relative">
                   <button
                     onClick={() => setShowNotifications(!showNotifications)}
-                    className="relative p-2 text-warmgray-600 rounded-xl hover:bg-warmgray-50 dark:text-warmgray-300 dark:hover:bg-warmgray-700 transition-colors"
+                    className="relative p-2 text-warmgray-600 rounded-xl hover:bg-warmgray-50 dark:text-warmgray-300 dark:hover:bg-warmgray-700 transition-colors hover-bellshake"
                   >
                     <Bell className="w-5 h-5" />
                     {unreadCount > 0 && (
@@ -121,8 +151,18 @@ const Navbar = ({ cartCount, toggleDarkMode, isDarkMode }) => {
                   {showNotifications && (
                     <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-warmgray-100 overflow-hidden dark:bg-warmgray-800 dark:border-warmgray-700 divide-y divide-warmgray-50 dark:divide-warmgray-700 animate-slideup">
                       <div className="p-4 flex items-center justify-between">
-                        <span className="font-bold text-sm text-warmgray-900 dark:text-white">Notifications</span>
-                        <span className="text-xs bg-brand-50 text-brand-600 px-2 py-0.5 rounded-full dark:bg-brand-950/40 dark:text-brand-400 font-semibold">{unreadCount} New</span>
+                        <div className="flex flex-col">
+                          <span className="font-bold text-sm text-warmgray-900 dark:text-white">Notifications</span>
+                          <span className="text-[10px] text-brand-600 dark:text-brand-400 font-semibold mt-0.5">{unreadCount} Unread</span>
+                        </div>
+                        {unreadCount > 0 && (
+                          <button
+                            onClick={handleMarkAllAsRead}
+                            className="text-[10px] font-bold text-brand-600 hover:text-brand-700 hover:bg-brand-50 border border-brand-200 px-2.5 py-1 rounded-xl transition-all dark:text-brand-400 dark:border-brand-900/50 dark:hover:bg-brand-950/30 flex items-center justify-center space-x-1"
+                          >
+                            <span>✓ Mark All as Read</span>
+                          </button>
+                        )}
                       </div>
                       <div className="max-h-60 overflow-y-auto">
                         {notifications.length === 0 ? (
@@ -131,21 +171,36 @@ const Navbar = ({ cartCount, toggleDarkMode, isDarkMode }) => {
                           notifications.map((notif) => (
                             <div
                               key={notif.id}
-                              className={`p-4 flex flex-col gap-1 transition-colors ${!notif.is_read ? 'bg-brand-50/40 dark:bg-brand-950/20' : ''}`}
+                              className={`p-4 flex flex-col gap-1 transition-all duration-300 ${!notif.is_read ? 'bg-brand-50/20 dark:bg-brand-950/10' : 'bg-transparent'}`}
                             >
-                              <p className="text-xs text-warmgray-700 dark:text-warmgray-300">{notif.message}</p>
-                              <div className="flex justify-between items-center mt-1">
+                              <div className="flex items-start gap-2">
+                                {!notif.is_read && (
+                                  <span className="w-1.5 h-1.5 rounded-full bg-brand-500 shrink-0 mt-1.5" aria-label="Unread indicator"></span>
+                                )}
+                                <p className={`text-xs transition-colors duration-300 ${!notif.is_read ? 'font-semibold text-warmgray-900 dark:text-white' : 'font-normal text-warmgray-400 dark:text-warmgray-500'}`}>
+                                  {notif.message}
+                                </p>
+                              </div>
+                              <div className="flex justify-between items-center mt-1.5 pl-3.5">
                                 <span className="text-[10px] text-warmgray-400">
                                   {new Date(notif.created_at).toLocaleDateString(undefined, {month: 'short', day: 'numeric'})}
                                 </span>
-                                {!notif.is_read && (
+                                <div className="flex items-center space-x-2">
+                                  {!notif.is_read && (
+                                    <button
+                                      onClick={() => handleMarkAsRead(notif.id)}
+                                      className="text-[10px] font-bold text-brand-600 hover:text-brand-700 dark:text-brand-400 transition-colors duration-200"
+                                    >
+                                      Mark read
+                                    </button>
+                                  )}
                                   <button
-                                    onClick={() => handleMarkAsRead(notif.id)}
-                                    className="text-[10px] font-bold text-brand-600 hover:text-brand-700 dark:text-brand-400"
+                                    onClick={() => handleDeleteNotification(notif.id)}
+                                    className="text-[10px] font-bold text-warmgray-450 hover:text-red-500 dark:text-warmgray-500 dark:hover:text-red-450 transition-colors duration-200"
                                   >
-                                    Mark read
+                                    Delete
                                   </button>
-                                )}
+                                </div>
                               </div>
                             </div>
                           ))
@@ -158,7 +213,7 @@ const Navbar = ({ cartCount, toggleDarkMode, isDarkMode }) => {
                 {/* Profile / Role Tag */}
                 <div className="flex items-center space-x-2 pl-2 border-l border-warmgray-100 dark:border-warmgray-700">
                   <Link
-                    to={user?.role === 'admin' ? '/admin' : '/account'}
+                    to={user?.role === 'admin' ? '/admin/profile' : '/account'}
                     className="hidden md:block text-right hover:text-brand-500 transition-colors"
                     title="View Profile"
                   >

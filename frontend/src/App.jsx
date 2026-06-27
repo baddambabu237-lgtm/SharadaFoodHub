@@ -1,26 +1,33 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import ProtectedRoute from './components/ProtectedRoute';
-import LandingPage from './pages/LandingPage';
-import LoginRegister from './pages/LoginRegister';
-import ProductCatalog from './pages/ProductCatalog';
-import ProductDetails from './pages/ProductDetails';
-import Cart from './pages/Cart';
-import Checkout from './pages/Checkout';
-import CustomerDashboard from './pages/CustomerDashboard';
-import SubscriptionManagement from './pages/SubscriptionManagement';
-import OrderHistory from './pages/OrderHistory';
-import AdminDashboard from './pages/AdminDashboard';
-import CustomerManagement from './pages/CustomerManagement';
-import ProductManagement from './pages/ProductManagement';
-import InventoryManagement from './pages/InventoryManagement';
-import DispatchDashboard from './pages/DispatchDashboard';
-import AnalyticsDashboard from './pages/AnalyticsDashboard';
-import SupportCenter from './pages/SupportCenter';
-import MyAccount from './pages/MyAccount';
-import Reports from './pages/Reports';
+
+const LandingPage = lazy(() => import('./pages/LandingPage'));
+const LoginRegister = lazy(() => import('./pages/LoginRegister'));
+const ProductCatalog = lazy(() => import('./pages/ProductCatalog'));
+const ProductDetails = lazy(() => import('./pages/ProductDetails'));
+const Cart = lazy(() => import('./pages/Cart'));
+const Checkout = lazy(() => import('./pages/Checkout'));
+const CustomerDashboard = lazy(() => import('./pages/CustomerDashboard'));
+const SubscriptionManagement = lazy(() => import('./pages/SubscriptionManagement'));
+const OrderHistory = lazy(() => import('./pages/OrderHistory'));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const CustomerManagement = lazy(() => import('./pages/CustomerManagement'));
+const ProductManagement = lazy(() => import('./pages/ProductManagement'));
+const InventoryManagement = lazy(() => import('./pages/InventoryManagement'));
+const DispatchDashboard = lazy(() => import('./pages/DispatchDashboard'));
+const AnalyticsDashboard = lazy(() => import('./pages/AnalyticsDashboard'));
+const SupportCenter = lazy(() => import('./pages/SupportCenter'));
+const MyAccount = lazy(() => import('./pages/MyAccount'));
+const Reports = lazy(() => import('./pages/Reports'));
+const CancellationManagement = lazy(() => import('./pages/CancellationManagement'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const Profile = lazy(() => import('./pages/Profile'));
+const MyReviews = lazy(() => import('./pages/MyReviews'));
+const ReviewsManagement = lazy(() => import('./pages/ReviewsManagement'));
+
 import './App.css';
 
 function App() {
@@ -81,140 +88,185 @@ function App() {
       <div className={`min-h-screen bg-warmgray-50 dark:bg-warmgray-900 transition-colors duration-200`}>
         <Navbar cartCount={cartCount} toggleDarkMode={toggleDarkMode} isDarkMode={isDarkMode} />
 
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/login" element={<LoginRegister />} />
+        <Suspense fallback={
+          <div className="flex items-center justify-center min-h-[calc(100vh-64px)] text-warmgray-400 dark:text-warmgray-500 font-medium">
+            <div className="flex flex-col items-center space-y-2">
+              <div className="w-8 h-8 border-4 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
+              <span className="text-sm">Loading page...</span>
+            </div>
+          </div>
+        }>
+          <Routes>
+            {/* Public Routes */}
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/login" element={<LoginRegister />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
 
-          {/* Customer Routes */}
-          <Route path="/catalog" element={
-            <div className="max-w-7xl mx-auto px-4 py-8">
-              <ProductCatalog addToCart={addToCart} />
-            </div>
-          } />
-          <Route path="/products/:id" element={
-            <div className="max-w-7xl mx-auto px-4 py-8">
-              <ProductDetails addToCart={addToCart} />
-            </div>
-          } />
-          <Route path="/cart" element={
-            <div className="max-w-7xl mx-auto px-4 py-8">
-              <Cart cart={cart} updateCartQuantity={updateCartQuantity} removeFromCart={removeFromCart} />
-            </div>
-          } />
-          <Route path="/checkout" element={
-            <ProtectedRoute customerOnly={true}>
+            {/* Customer Routes */}
+            <Route path="/catalog" element={
               <div className="max-w-7xl mx-auto px-4 py-8">
-                <Checkout cart={cart} clearCart={clearCart} />
+                <ProductCatalog addToCart={addToCart} />
               </div>
-            </ProtectedRoute>
-          } />
+            } />
+            <Route path="/products/:id" element={
+              <div className="max-w-7xl mx-auto px-4 py-8">
+                <ProductDetails addToCart={addToCart} />
+              </div>
+            } />
+            <Route path="/cart" element={
+              <ProtectedRoute customerOnly={true}>
+                <div className="max-w-7xl mx-auto px-4 py-8">
+                  <Cart cart={cart} updateCartQuantity={updateCartQuantity} removeFromCart={removeFromCart} />
+                </div>
+              </ProtectedRoute>
+            } />
+            <Route path="/checkout" element={
+              <ProtectedRoute customerOnly={true}>
+                <div className="max-w-7xl mx-auto px-4 py-8">
+                  <Checkout cart={cart} clearCart={clearCart} />
+                </div>
+              </ProtectedRoute>
+            } />
+            <Route path="/my-account" element={<Navigate to="/account" replace />} />
 
-          {/* Customer Dashboard with Sidebar */}
-          <Route path="/dashboard" element={
-            <ProtectedRoute customerOnly={true}>
-              <div className="flex min-h-[calc(100vh-64px)]">
-                <Sidebar isAdmin={false} />
-                <main className="flex-1 overflow-auto"><CustomerDashboard /></main>
-              </div>
-            </ProtectedRoute>
-          } />
-          <Route path="/subscriptions" element={
-            <ProtectedRoute customerOnly={true}>
-              <div className="flex min-h-[calc(100vh-64px)]">
-                <Sidebar isAdmin={false} />
-                <main className="flex-1 overflow-auto"><SubscriptionManagement /></main>
-              </div>
-            </ProtectedRoute>
-          } />
-          <Route path="/orders" element={
-            <ProtectedRoute customerOnly={true}>
-              <div className="flex min-h-[calc(100vh-64px)]">
-                <Sidebar isAdmin={false} />
-                <main className="flex-1 overflow-auto"><OrderHistory /></main>
-              </div>
-            </ProtectedRoute>
-          } />
-          <Route path="/support" element={
-            <ProtectedRoute customerOnly={true}>
-              <div className="flex min-h-[calc(100vh-64px)]">
-                <Sidebar isAdmin={false} />
-                <main className="flex-1 overflow-auto"><SupportCenter /></main>
-              </div>
-            </ProtectedRoute>
-          } />
-          <Route path="/account" element={
-            <ProtectedRoute customerOnly={true}>
-              <MyAccount />
-            </ProtectedRoute>
-          } />
+            {/* Customer Dashboard with Sidebar */}
+            <Route path="/dashboard" element={
+              <ProtectedRoute customerOnly={true}>
+                <div className="flex min-h-[calc(100vh-64px)]">
+                  <Sidebar isAdmin={false} />
+                  <main className="flex-1 overflow-auto"><CustomerDashboard /></main>
+                </div>
+              </ProtectedRoute>
+            } />
+            <Route path="/subscriptions" element={
+              <ProtectedRoute customerOnly={true}>
+                <div className="flex min-h-[calc(100vh-64px)]">
+                  <Sidebar isAdmin={false} />
+                  <main className="flex-1 overflow-auto"><SubscriptionManagement /></main>
+                </div>
+              </ProtectedRoute>
+            } />
+            <Route path="/orders" element={
+              <ProtectedRoute customerOnly={true}>
+                <div className="flex min-h-[calc(100vh-64px)]">
+                  <Sidebar isAdmin={false} />
+                  <main className="flex-1 overflow-auto"><OrderHistory /></main>
+                </div>
+              </ProtectedRoute>
+            } />
+            <Route path="/support" element={
+              <ProtectedRoute customerOnly={true}>
+                <div className="flex min-h-[calc(100vh-64px)]">
+                  <Sidebar isAdmin={false} />
+                  <main className="flex-1 overflow-auto"><SupportCenter /></main>
+                </div>
+              </ProtectedRoute>
+            } />
+            <Route path="/reviews" element={
+              <ProtectedRoute customerOnly={true}>
+                <div className="flex min-h-[calc(100vh-64px)]">
+                  <Sidebar isAdmin={false} />
+                  <main className="flex-1 overflow-auto"><MyReviews /></main>
+                </div>
+              </ProtectedRoute>
+            } />
+            <Route path="/account" element={
+              <ProtectedRoute customerOnly={true}>
+                <MyAccount />
+              </ProtectedRoute>
+            } />
 
-          {/* Admin Routes with Admin Sidebar */}
-          <Route path="/admin" element={
-            <ProtectedRoute adminOnly>
-              <div className="flex min-h-[calc(100vh-64px)]">
-                <Sidebar isAdmin={true} />
-                <main className="flex-1 overflow-auto"><AdminDashboard /></main>
-              </div>
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/customers" element={
-            <ProtectedRoute adminOnly>
-              <div className="flex min-h-[calc(100vh-64px)]">
-                <Sidebar isAdmin={true} />
-                <main className="flex-1 overflow-auto"><CustomerManagement /></main>
-              </div>
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/products" element={
-            <ProtectedRoute adminOnly>
-              <div className="flex min-h-[calc(100vh-64px)]">
-                <Sidebar isAdmin={true} />
-                <main className="flex-1 overflow-auto"><ProductManagement /></main>
-              </div>
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/inventory" element={
-            <ProtectedRoute adminOnly>
-              <div className="flex min-h-[calc(100vh-64px)]">
-                <Sidebar isAdmin={true} />
-                <main className="flex-1 overflow-auto"><InventoryManagement /></main>
-              </div>
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/dispatches" element={
-            <ProtectedRoute adminOnly>
-              <div className="flex min-h-[calc(100vh-64px)]">
-                <Sidebar isAdmin={true} />
-                <main className="flex-1 overflow-auto"><DispatchDashboard /></main>
-              </div>
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/analytics" element={
-            <ProtectedRoute adminOnly>
-              <div className="flex min-h-[calc(100vh-64px)]">
-                <Sidebar isAdmin={true} />
-                <main className="flex-1 overflow-auto"><AnalyticsDashboard /></main>
-              </div>
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/support" element={
-            <ProtectedRoute adminOnly>
-              <div className="flex min-h-[calc(100vh-64px)]">
-                <Sidebar isAdmin={true} />
-                <main className="flex-1 overflow-auto"><SupportCenter isAdmin /></main>
-              </div>
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/reports" element={
-            <ProtectedRoute adminOnly>
-              <Reports />
-            </ProtectedRoute>
-          } />
+            {/* Admin Routes with Admin Sidebar */}
+            <Route path="/admin" element={
+              <ProtectedRoute adminOnly>
+                <div className="flex min-h-[calc(100vh-64px)]">
+                  <Sidebar isAdmin={true} />
+                  <main className="flex-1 overflow-auto"><AdminDashboard /></main>
+                </div>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/customers" element={
+              <ProtectedRoute adminOnly>
+                <div className="flex min-h-[calc(100vh-64px)]">
+                  <Sidebar isAdmin={true} />
+                  <main className="flex-1 overflow-auto"><CustomerManagement /></main>
+                </div>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/products" element={
+              <ProtectedRoute adminOnly>
+                <div className="flex min-h-[calc(100vh-64px)]">
+                  <Sidebar isAdmin={true} />
+                  <main className="flex-1 overflow-auto"><ProductManagement /></main>
+                </div>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/inventory" element={
+              <ProtectedRoute adminOnly>
+                <div className="flex min-h-[calc(100vh-64px)]">
+                  <Sidebar isAdmin={true} />
+                  <main className="flex-1 overflow-auto"><InventoryManagement /></main>
+                </div>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/dispatches" element={
+              <ProtectedRoute adminOnly>
+                <div className="flex min-h-[calc(100vh-64px)]">
+                  <Sidebar isAdmin={true} />
+                  <main className="flex-1 overflow-auto"><DispatchDashboard /></main>
+                </div>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/analytics" element={
+              <ProtectedRoute adminOnly>
+                <div className="flex min-h-[calc(100vh-64px)]">
+                  <Sidebar isAdmin={true} />
+                  <main className="flex-1 overflow-auto"><AnalyticsDashboard /></main>
+                </div>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/support" element={
+              <ProtectedRoute adminOnly>
+                <div className="flex min-h-[calc(100vh-64px)]">
+                  <Sidebar isAdmin={true} />
+                  <main className="flex-1 overflow-auto"><SupportCenter isAdmin /></main>
+                </div>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/cancellations" element={
+              <ProtectedRoute adminOnly>
+                <div className="flex min-h-[calc(100vh-64px)]">
+                  <Sidebar isAdmin={true} />
+                  <main className="flex-1 overflow-auto"><CancellationManagement /></main>
+                </div>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/reviews" element={
+              <ProtectedRoute adminOnly>
+                <div className="flex min-h-[calc(100vh-64px)]">
+                  <Sidebar isAdmin={true} />
+                  <main className="flex-1 overflow-auto"><ReviewsManagement /></main>
+                </div>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/profile" element={
+              <ProtectedRoute adminOnly>
+                <div className="flex min-h-[calc(100vh-64px)]">
+                  <Sidebar isAdmin={true} />
+                  <main className="flex-1 overflow-auto"><Profile /></main>
+                </div>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/reports" element={
+              <ProtectedRoute adminOnly>
+                <Reports />
+              </ProtectedRoute>
+            } />
 
-          {/* Fallback */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+            {/* Fallback */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
       </div>
     </Router>
   );

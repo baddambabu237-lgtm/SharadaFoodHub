@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Package, ShoppingBag, RefreshCw, Users,
   Boxes, Truck, BarChart3, HeadphonesIcon, ChevronRight,
-  Tag, ClipboardList, ShoppingCart, User, FileText
+  Tag, ClipboardList, ShoppingCart, User, FileText, XCircle, Star
 } from 'lucide-react';
 
 const customerLinks = [
@@ -11,6 +11,7 @@ const customerLinks = [
   { to: '/catalog', label: 'Products', icon: Package },
   { to: '/subscriptions', label: 'Subscriptions', icon: RefreshCw },
   { to: '/orders', label: 'Orders', icon: ShoppingBag },
+  { to: '/reviews', label: 'My Reviews', icon: Star },
   { to: '/cart', label: 'Cart', icon: ShoppingCart },
   { to: '/account', label: 'My Account', icon: User },
   { to: '/support', label: 'Support', icon: HeadphonesIcon },
@@ -21,10 +22,13 @@ const adminLinks = [
   { to: '/admin/products', label: 'Products', icon: Tag },
   { to: '/admin/inventory', label: 'Inventory', icon: Boxes },
   { to: '/admin/dispatches', label: 'Orders', icon: Truck },
+  { to: '/admin/cancellations', label: 'Cancellations', icon: XCircle },
+  { to: '/admin/reviews', label: 'Reviews', icon: Star },
   { to: '/admin/customers', label: 'Customers', icon: Users },
   { to: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
   { to: '/admin/support', label: 'Support Tickets', icon: ClipboardList },
   { to: '/admin/reports', label: 'Reports', icon: FileText },
+  { to: '/admin/profile', label: 'My Profile', icon: User },
 ];
 
 const Sidebar = ({ isAdmin }) => {
@@ -71,4 +75,4 @@ const Sidebar = ({ isAdmin }) => {
   );
 };
 
-export default Sidebar;
+export default React.memo(Sidebar);

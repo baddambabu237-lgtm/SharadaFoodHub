@@ -53,6 +53,7 @@ const Cart = ({ cart, updateCartQuantity, removeFromCart }) => {
                 src={item.image_url}
                 alt={item.name}
                 className="w-20 h-20 object-cover rounded-xl bg-warmgray-50 border border-warmgray-100 dark:border-warmgray-700"
+                loading="lazy"
               />
               <div className="flex-1">
                 <span className="text-[10px] font-bold text-brand-600 dark:text-brand-400 uppercase tracking-wider">{item.category_name}</span>

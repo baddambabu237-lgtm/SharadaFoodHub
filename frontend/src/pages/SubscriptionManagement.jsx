@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Calendar, RefreshCw, Play, Pause, Trash2, ArrowRight } from 'lucide-react';
 import API from '../utils/api';
+import Modal from '../components/Modal';
 
 const SubscriptionManagement = () => {
   const [subscriptions, setSubscriptions] = useState([]);
@@ -33,8 +34,8 @@ const SubscriptionManagement = () => {
       setMessage('Subscription paused successfully.');
       fetchSubscriptions();
     } catch (err) {
-      console.error(err);
-      setError('Failed to pause subscription.');
+      console.error('Error pausing subscription:', err);
+      setError(err.response?.data?.error || 'Failed to pause subscription.');
     }
   };
 
@@ -46,22 +47,38 @@ const SubscriptionManagement = () => {
       setMessage(`Subscription resumed! Next dispatch: ${res.data.next_dispatch_date}.`);
       fetchSubscriptions();
     } catch (err) {
-      console.error(err);
-      setError('Failed to resume subscription.');
+      console.error('Error resuming subscription:', err);
+      setError(err.response?.data?.error || 'Failed to resume subscription.');
     }
   };
 
-  const handleCancel = async (id) => {
-    if (!window.confirm('Are you sure you want to cancel this subscription?')) return;
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [selectedSubId, setSelectedSubId] = useState(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelling, setCancelling] = useState(false);
+
+  const handleCancelClick = (id) => {
+    setSelectedSubId(id);
+    setCancelReason('');
+    setCancelModalOpen(true);
+  };
+
+  const confirmCancelSubscription = async () => {
+    if (!selectedSubId || !cancelReason) return;
+    setCancelling(true);
     setError('');
     setMessage('');
     try {
-      await API.delete(`/subscriptions/${id}`);
-      setMessage('Subscription cancelled.');
+      await API.post(`/subscriptions/${selectedSubId}/cancel`, { reason: cancelReason });
+      setMessage('Subscription cancelled successfully.');
+      setCancelModalOpen(false);
       fetchSubscriptions();
     } catch (err) {
       console.error(err);
-      setError('Failed to cancel subscription.');
+      setError(err.response?.data?.error || 'Failed to cancel subscription.');
+      setCancelModalOpen(false);
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -106,6 +123,7 @@ const SubscriptionManagement = () => {
                   src={sub.image_url}
                   alt={sub.product_name}
                   className="w-16 h-16 object-cover rounded-2xl bg-warmgray-50"
+                  loading="lazy"
                 />
                 <div className="flex-1">
                   <div className="flex justify-between items-start">
@@ -159,7 +177,7 @@ const SubscriptionManagement = () => {
 
                 {sub.status !== 'cancelled' && (
                   <button
-                    onClick={() => handleCancel(sub.id)}
+                    onClick={() => handleCancelClick(sub.id)}
                     className="px-3 py-2 border border-warmgray-200 hover:border-red-200 text-warmgray-400 hover:text-red-650 rounded-xl transition-all dark:border-warmgray-700"
                     title="Cancel Subscription"
                   >
@@ -171,6 +189,52 @@ const SubscriptionManagement = () => {
           ))}
         </div>
       )}
+
+      <Modal
+        isOpen={cancelModalOpen}
+        onClose={() => setCancelModalOpen(false)}
+        title="Cancel Subscription Plan"
+      >
+        <div className="space-y-4 text-xs animate-fadein">
+          <p className="text-warmgray-500 leading-relaxed">
+            We are sorry to see you go! Please let us know the reason for cancelling your subscription plan below:
+          </p>
+          <div>
+            <label className="block text-[10px] font-bold text-warmgray-400 uppercase tracking-wider mb-2">
+              Cancellation Reason
+            </label>
+            <select
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              className="w-full px-3 py-2.5 bg-white dark:bg-warmgray-850 border border-warmgray-200 dark:border-warmgray-750 rounded-xl text-xs font-semibold focus:outline-none dark:text-white"
+            >
+              <option value="">-- Choose cancellation reason --</option>
+              <option value="Ordered by mistake">Ordered by mistake</option>
+              <option value="Too expensive">Too expensive</option>
+              <option value="No longer needed">No longer needed</option>
+              <option value="Delivery issue">Delivery issue</option>
+              <option value="Product issue">Product issue</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            <button
+              onClick={confirmCancelSubscription}
+              disabled={!cancelReason || cancelling}
+              className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs transition-colors disabled:opacity-50"
+            >
+              {cancelling ? 'Cancelling...' : 'Confirm Cancellation'}
+            </button>
+            <button
+              onClick={() => setCancelModalOpen(false)}
+              className="flex-1 py-2.5 bg-warmgray-100 hover:bg-warmgray-200 text-warmgray-750 font-bold rounded-xl text-xs transition-colors dark:bg-warmgray-850 dark:hover:bg-warmgray-750 dark:text-warmgray-300"
+            >
+              Keep Subscription
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

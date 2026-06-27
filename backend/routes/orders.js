@@ -2,30 +2,69 @@ const express = require('express');
 const router = express.Router();
 const { query } = require('../db/db');
 const { authenticateToken } = require('../middleware/auth');
+const cache = require('../utils/cache');
 
 // Get orders (customer gets their own, admin gets all)
+// Admin response includes nested `items` array with product details
 router.get('/', authenticateToken, async (req, res) => {
   try {
     let sql, params;
     if (req.user.role === 'admin') {
       sql = `
-        SELECT o.*, u.name as customer_name, u.email as customer_email 
-        FROM orders o 
-        JOIN users u ON o.customer_id = u.id 
+        SELECT o.*,
+               u.name    AS customer_name,
+               u.email   AS customer_email,
+               u.phone   AS customer_phone,
+               u.address AS customer_address
+        FROM orders o
+        JOIN users u ON o.customer_id = u.id
         ORDER BY o.id DESC
       `;
       params = [];
     } else {
       sql = `
-        SELECT o.* 
-        FROM orders o 
-        WHERE o.customer_id = ? 
+        SELECT o.*
+        FROM orders o
+        WHERE o.customer_id = ?
         ORDER BY o.id DESC
       `;
       params = [req.user.id];
     }
 
     const orders = await query.all(sql, params);
+
+    // For admin: attach items (product name, qty, price) to every order
+    if (req.user.role === 'admin') {
+      const orderIds = orders.map(o => o.id);
+      let orderItemsMap = {};
+      if (orderIds.length > 0) {
+        // Query database once for all order items
+        const placeholders = orderIds.map(() => '?').join(',');
+        const items = await query.all(
+          `SELECT oi.order_id, oi.id, oi.quantity, oi.price,
+                  p.id AS product_id,
+                  p.name AS name,
+                  p.name AS product_name,
+                  p.weight, p.image_url
+           FROM order_items oi
+           JOIN products p ON oi.product_id = p.id
+           WHERE oi.order_id IN (${placeholders})`,
+          orderIds
+        );
+        items.forEach(item => {
+          if (!orderItemsMap[item.order_id]) {
+            orderItemsMap[item.order_id] = [];
+          }
+          orderItemsMap[item.order_id].push(item);
+        });
+      }
+      const enriched = orders.map(order => ({
+        ...order,
+        items: orderItemsMap[order.id] || []
+      }));
+      return res.status(200).json({ orders: enriched });
+    }
+
     res.status(200).json({ orders });
   } catch (err) {
     console.error('Fetch orders error:', err);
@@ -33,11 +72,24 @@ router.get('/', authenticateToken, async (req, res) => {
   }
 });
 
-// Get order details by ID
+// Get order details by ID (includes customer info for admin)
 router.get('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const order = await query.get('SELECT * FROM orders WHERE id = ?', [id]);
+
+    let order;
+    if (req.user.role === 'admin') {
+      order = await query.get(
+        `SELECT o.*, u.name AS customer_name, u.email AS customer_email,
+                u.phone AS customer_phone, u.address AS customer_address
+         FROM orders o
+         JOIN users u ON o.customer_id = u.id
+         WHERE o.id = ?`,
+        [id]
+      );
+    } else {
+      order = await query.get('SELECT * FROM orders WHERE id = ?', [id]);
+    }
 
     if (!order) {
       return res.status(404).json({ error: 'Order not found' });
@@ -48,12 +100,21 @@ router.get('/:id', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Unauthorized' });
     }
 
-    const items = await query.all(`
-      SELECT oi.*, p.name, p.weight, p.image_url 
-      FROM order_items oi
-      JOIN products p ON oi.product_id = p.id
-      WHERE oi.order_id = ?
-    `, [id]);
+    const items = await query.all(
+      `SELECT oi.id, oi.quantity, oi.price,
+              p.id AS product_id,
+              p.name AS name,
+              p.name AS product_name,
+              p.weight, p.image_url
+       FROM order_items oi
+       JOIN products p ON oi.product_id = p.id
+       WHERE oi.order_id = ?`,
+      [id]
+    );
+
+    if (items.length === 0) {
+      console.warn(`[Order ${id}] WARNING: No items found in order_items for this order`);
+    }
 
     const dispatch = await query.get('SELECT * FROM dispatches WHERE order_id = ?', [id]);
 
@@ -126,6 +187,15 @@ router.post('/', authenticateToken, async (req, res) => {
         quantityToDeduct -= deductAmt;
       }
 
+      // ── Increment sales_count and recalculate trending_score ──────────────
+      await query.run(
+        `UPDATE products
+         SET sales_count = sales_count + ?,
+             trending_score = ROUND(((sales_count + ?) * 0.6 + view_count * 0.4)::NUMERIC, 2)
+         WHERE id = ?`,
+        [item.quantity, item.quantity, item.product_id]
+      );
+
       // Check if product stock is low after deduction
       const totalStock = await query.get(
         'SELECT SUM(remaining_qty) as total FROM inventory_batches WHERE product_id = ?',
@@ -144,6 +214,7 @@ router.post('/', authenticateToken, async (req, res) => {
           );
         }
       }
+
     }
 
     // 3. Create dispatch queue record
@@ -160,6 +231,9 @@ router.post('/', authenticateToken, async (req, res) => {
       'INSERT INTO notifications (user_id, message, type) VALUES (?, ?, ?)',
       [customer_id, `Your order for ₹${total_amount} was placed successfully! Tracking ID: OR-${orderId}.`, 'info']
     );
+
+    // Invalidate stats caches
+    cache.deletePattern('stats');
 
     res.status(201).json({
       message: 'Order placed successfully',
@@ -198,10 +272,10 @@ router.post('/:id/cancel', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: `Order cannot be cancelled because its status is "${order.status}"` });
     }
 
-    // 1. Update order record status and reason
+    // 1. Update order record status, reason, cancelled_at, cancelled_by, and previous_status
     await query.run(
-      'UPDATE orders SET status = ?, cancellation_reason = ? WHERE id = ?',
-      ['cancelled', reason, id]
+      'UPDATE orders SET status = ?, cancellation_reason = ?, cancelled_at = NOW(), cancelled_by = ?, previous_status = ? WHERE id = ?',
+      ['cancelled', reason, req.user.role, order.status, id]
     );
 
     // 2. Update dispatch record status to cancelled
@@ -231,6 +305,19 @@ router.post('/:id/cancel', authenticateToken, async (req, res) => {
       'INSERT INTO notifications (user_id, message, type) VALUES (?, ?, ?)',
       [order.customer_id, `Your order OR-${id} has been cancelled successfully. Reason: ${reason}.`, 'info']
     );
+
+    // 5. Send admin notification
+    const user = await query.get('SELECT name FROM users WHERE id = ?', [order.customer_id]);
+    const admins = await query.all("SELECT id FROM users WHERE role = 'admin'");
+    for (const admin of admins) {
+      await query.run(
+        'INSERT INTO notifications (user_id, message, type) VALUES (?, ?, ?)',
+        [admin.id, `New Cancellation Request: Customer ${user.name} cancelled Order #${id}.`, 'alert']
+      );
+    }
+
+    // Invalidate stats caches
+    cache.deletePattern('stats');
 
     res.status(200).json({
       message: 'Order cancelled successfully',

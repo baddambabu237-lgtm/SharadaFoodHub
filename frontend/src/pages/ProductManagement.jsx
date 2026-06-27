@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Tag, Layers } from 'lucide-react';
+import { Plus, Edit2, Trash2, Tag, Flame, Star, Sparkles, TrendingUp, Eye } from 'lucide-react';
 import API from '../utils/api';
 import Modal from '../components/Modal';
 
@@ -20,6 +20,11 @@ const ProductManagement = () => {
   const [imageUrl, setImageUrl] = useState('');
   const [weight, setWeight] = useState('');
   const [shelfLifeDays, setShelfLifeDays] = useState('');
+  // Product marking states
+  const [isTrending, setIsTrending] = useState(false);
+  const [isFeatured, setIsFeatured] = useState(false);
+  const [isSpecialOffer, setIsSpecialOffer] = useState(false);
+  const [discountPercent, setDiscountPercent] = useState('');
 
   const fetchData = async () => {
     try {
@@ -49,6 +54,10 @@ const ProductManagement = () => {
     setImageUrl('');
     setWeight('250g');
     setShelfLifeDays('180');
+    setIsTrending(false);
+    setIsFeatured(false);
+    setIsSpecialOffer(false);
+    setDiscountPercent('');
     setError('');
     setSuccess('');
     setModalOpen(true);
@@ -63,6 +72,10 @@ const ProductManagement = () => {
     setImageUrl(prod.image_url);
     setWeight(prod.weight);
     setShelfLifeDays(prod.shelf_life_days);
+    setIsTrending(prod.is_trending || false);
+    setIsFeatured(prod.is_featured || false);
+    setIsSpecialOffer(prod.is_special_offer || false);
+    setDiscountPercent(prod.discount_percent || '');
     setError('');
     setSuccess('');
     setModalOpen(true);
@@ -73,14 +86,45 @@ const ProductManagement = () => {
     setError('');
     setSuccess('');
 
+    // Pre-submit validation
+    if (!name || name.trim().length === 0) {
+      setError('Product name is required.');
+      return;
+    }
+    if (!categoryId) {
+      setError('Please select a category.');
+      return;
+    }
+    const priceVal = parseFloat(price);
+    if (isNaN(priceVal) || priceVal <= 0) {
+      setError('Price must be a positive number.');
+      return;
+    }
+    const shelfLifeVal = parseInt(shelfLifeDays);
+    if (isNaN(shelfLifeVal) || shelfLifeVal <= 0) {
+      setError('Shelf life must be a positive number of days.');
+      return;
+    }
+
+    const DEFAULT_PLACEHOLDER = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=300';
+    const isValidUrl = (url) => {
+      if (!url || typeof url !== 'string') return false;
+      return url.startsWith('http://') || url.startsWith('https://');
+    };
+    const finalImageUrl = isValidUrl(imageUrl) ? imageUrl : DEFAULT_PLACEHOLDER;
+
     const payload = {
-      category_id: categoryId,
+      category_id: parseInt(categoryId),
       name,
       description,
-      price: parseFloat(price),
-      image_url: imageUrl,
+      price: priceVal,
+      image_url: finalImageUrl,
       weight,
-      shelf_life_days: parseInt(shelfLifeDays)
+      shelf_life_days: shelfLifeVal,
+      is_trending: isTrending,
+      is_featured: isFeatured,
+      is_special_offer: isSpecialOffer,
+      discount_percent: isSpecialOffer ? (parseInt(discountPercent) || 0) : 0,
     };
 
     try {
@@ -139,9 +183,9 @@ const ProductManagement = () => {
               <tr className="bg-warmgray-50 text-warmgray-450 uppercase tracking-wider font-bold border-b border-warmgray-100 dark:bg-warmgray-900 dark:border-warmgray-700">
                 <th className="p-4 pl-6">Product Details</th>
                 <th className="p-4">Category</th>
-                <th className="p-4">Weight</th>
-                <th className="p-4">Unit Price</th>
-                <th className="p-4">Shelf Life</th>
+                <th className="p-4">Price</th>
+                <th className="p-4">Labels</th>
+                <th className="p-4">Sales / Views</th>
                 <th className="p-4 pr-6 text-right">Actions</th>
               </tr>
             </thead>
@@ -150,7 +194,7 @@ const ProductManagement = () => {
                 <tr key={prod.id} className="hover:bg-warmgray-50/50 dark:hover:bg-warmgray-900/30 transition-colors">
                   <td className="p-4 pl-6">
                     <div className="flex items-center space-x-3">
-                      <img src={prod.image_url} alt={prod.name} className="w-12 h-12 object-cover rounded-xl bg-warmgray-50 shrink-0" />
+                      <img src={prod.image_url} alt={prod.name} className="w-12 h-12 object-cover rounded-xl bg-warmgray-50 shrink-0" loading="lazy" />
                       <div>
                         <div className="font-bold text-warmgray-900 dark:text-white text-sm">{prod.name}</div>
                         <div className="text-[10px] text-warmgray-400 line-clamp-1 max-w-xs">{prod.description}</div>
@@ -163,9 +207,26 @@ const ProductManagement = () => {
                       <span>{prod.category_name}</span>
                     </span>
                   </td>
-                  <td className="p-4 font-semibold">{prod.weight}</td>
-                  <td className="p-4 font-bold text-warmgray-900 dark:text-white">₹{prod.price}</td>
-                  <td className="p-4 text-warmgray-500 dark:text-warmgray-400 font-semibold">{prod.shelf_life_days} Days</td>
+                  <td className="p-4">
+                    <div className="font-bold text-warmgray-900 dark:text-white">₹{prod.price}</div>
+                    {prod.is_special_offer && prod.discount_percent > 0 && (
+                      <div className="text-[9px] text-green-600 font-bold">{prod.discount_percent}% OFF applied</div>
+                    )}
+                  </td>
+                  <td className="p-4">
+                    <div className="flex flex-wrap gap-1">
+                      {prod.is_trending && <span className="flex items-center gap-0.5 px-1.5 py-0.5 bg-orange-100 text-orange-700 text-[8px] font-bold rounded-md"><Flame className="w-2.5 h-2.5" />Trending</span>}
+                      {prod.is_featured && <span className="flex items-center gap-0.5 px-1.5 py-0.5 bg-purple-100 text-purple-700 text-[8px] font-bold rounded-md"><Star className="w-2.5 h-2.5" />Featured</span>}
+                      {prod.is_special_offer && <span className="flex items-center gap-0.5 px-1.5 py-0.5 bg-green-100 text-green-700 text-[8px] font-bold rounded-md">🏷️ Offer</span>}
+                      {!prod.is_trending && !prod.is_featured && !prod.is_special_offer && <span className="text-warmgray-300 text-[9px]">—</span>}
+                    </div>
+                  </td>
+                  <td className="p-4">
+                    <div className="flex items-center gap-2 text-[10px] text-warmgray-500">
+                      <span className="flex items-center gap-0.5"><TrendingUp className="w-3 h-3 text-brand-500" />{prod.sales_count || 0} sold</span>
+                      <span className="flex items-center gap-0.5"><Eye className="w-3 h-3 text-blue-400" />{prod.view_count || 0}</span>
+                    </div>
+                  </td>
                   <td className="p-4 pr-6 text-right space-x-2 shrink-0">
                     <button
                       onClick={() => handleOpenEditModal(prod)}
@@ -283,6 +344,75 @@ const ProductManagement = () => {
               className="w-full px-3 py-2 bg-warmgray-50 rounded-lg border border-warmgray-200 dark:bg-warmgray-900 dark:border-warmgray-750 dark:text-white resize-none"
             />
           </div>
+
+          {/* Product Marking */}
+          <div className="space-y-2 pt-1">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-warmgray-400">Product Labels &amp; Visibility</label>
+            <div className="grid grid-cols-1 gap-2">
+              <label className="flex items-center gap-3 p-3 rounded-lg border border-warmgray-200 dark:border-warmgray-700 cursor-pointer hover:bg-warmgray-50 dark:hover:bg-warmgray-900 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={isTrending}
+                  onChange={(e) => setIsTrending(e.target.checked)}
+                  className="w-4 h-4 accent-orange-500"
+                />
+                <Flame className="w-4 h-4 text-orange-500" />
+                <div>
+                  <div className="text-xs font-bold text-warmgray-800 dark:text-white">Mark as Trending</div>
+                  <div className="text-[10px] text-warmgray-400">Appears in 🔥 Trending filter and homepage section</div>
+                </div>
+              </label>
+              <label className="flex items-center gap-3 p-3 rounded-lg border border-warmgray-200 dark:border-warmgray-700 cursor-pointer hover:bg-warmgray-50 dark:hover:bg-warmgray-900 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={isFeatured}
+                  onChange={(e) => setIsFeatured(e.target.checked)}
+                  className="w-4 h-4 accent-purple-500"
+                />
+                <Star className="w-4 h-4 text-purple-500" />
+                <div>
+                  <div className="text-xs font-bold text-warmgray-800 dark:text-white">Mark as Featured / Premium</div>
+                  <div className="text-[10px] text-warmgray-400">Shown in 👑 Premium filter (also auto-applied for price ≥ ₹250)</div>
+                </div>
+              </label>
+              <label className="flex items-center gap-3 p-3 rounded-lg border border-warmgray-200 dark:border-warmgray-700 cursor-pointer hover:bg-warmgray-50 dark:hover:bg-warmgray-900 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={isSpecialOffer}
+                  onChange={(e) => setIsSpecialOffer(e.target.checked)}
+                  className="w-4 h-4 accent-green-500"
+                />
+                <Sparkles className="w-4 h-4 text-green-500" />
+                <div>
+                  <div className="text-xs font-bold text-warmgray-800 dark:text-white">Mark as Special Offer</div>
+                  <div className="text-[10px] text-warmgray-400">Shows discount ribbon on product cards</div>
+                </div>
+              </label>
+              {isSpecialOffer && (
+                <div className="ml-7 space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-warmgray-400">Discount Percentage (%)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="80"
+                    value={discountPercent}
+                    onChange={(e) => setDiscountPercent(e.target.value)}
+                    placeholder="e.g. 15"
+                    className="w-full px-3 py-2 bg-warmgray-50 rounded-lg border border-green-300 dark:bg-warmgray-900 dark:border-warmgray-700 dark:text-white"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Analytics info (edit mode only) */}
+          {editingProduct && (
+            <div className="flex gap-4 p-3 bg-warmgray-50 dark:bg-warmgray-900 rounded-lg text-[10px] text-warmgray-500">
+              <span className="flex items-center gap-1"><TrendingUp className="w-3 h-3 text-brand-500" /><strong>{editingProduct.sales_count || 0}</strong> units sold</span>
+              <span className="flex items-center gap-1"><Eye className="w-3 h-3 text-blue-400" /><strong>{editingProduct.view_count || 0}</strong> views</span>
+              <span className="flex items-center gap-1">⚡ Score: <strong>{editingProduct.trending_score || 0}</strong></span>
+            </div>
+          )}
 
           <button
             type="submit"

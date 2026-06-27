@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   User, Phone, MapPin, Mail, ShieldCheck, Save, AlertCircle,
   Plus, Trash2, Edit2, CreditCard, Lock, Bell, Shield, Heart,
-  Headphones, LogOut, ChevronRight, CheckCircle2, Key, Star, ShoppingBag, RefreshCw
+  Headphones, LogOut, ChevronRight, CheckCircle2, Key, Star, ShoppingBag, RefreshCw, Sparkles,
+  Eye, EyeOff
 } from 'lucide-react';
 import API from '../utils/api';
 import Sidebar from '../components/Sidebar';
+import { calculateMembership, MEMBERSHIP_TIERS } from '../utils/membership';
 
 const MyAccount = () => {
   const navigate = useNavigate();
@@ -59,6 +61,64 @@ const MyAccount = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
   const [passwordError, setPasswordError] = useState('');
+
+  // Password visibility states
+  const [showOldPassword, setShowOldPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Input refs for changing password
+  const oldPasswordRef = useRef(null);
+  const newPasswordRef = useRef(null);
+  const confirmPasswordRef = useRef(null);
+
+  const toggleOldPassword = (e) => {
+    e.preventDefault();
+    const input = oldPasswordRef.current;
+    if (input) {
+      const start = input.selectionStart;
+      const end = input.selectionEnd;
+      setShowOldPassword(prev => !prev);
+      setTimeout(() => {
+        input.focus();
+        input.setSelectionRange(start, end);
+      }, 0);
+    } else {
+      setShowOldPassword(prev => !prev);
+    }
+  };
+
+  const toggleNewPassword = (e) => {
+    e.preventDefault();
+    const input = newPasswordRef.current;
+    if (input) {
+      const start = input.selectionStart;
+      const end = input.selectionEnd;
+      setShowNewPassword(prev => !prev);
+      setTimeout(() => {
+        input.focus();
+        input.setSelectionRange(start, end);
+      }, 0);
+    } else {
+      setShowNewPassword(prev => !prev);
+    }
+  };
+
+  const toggleConfirmPassword = (e) => {
+    e.preventDefault();
+    const input = confirmPasswordRef.current;
+    if (input) {
+      const start = input.selectionStart;
+      const end = input.selectionEnd;
+      setShowConfirmPassword(prev => !prev);
+      setTimeout(() => {
+        input.focus();
+        input.setSelectionRange(start, end);
+      }, 0);
+    } else {
+      setShowConfirmPassword(prev => !prev);
+    }
+  };
 
   // Fetch profiles, addresses, payments, subscriptions, and orders
   const loadAccountData = async () => {
@@ -311,7 +371,7 @@ const MyAccount = () => {
   };
 
   // Change Password Action
-  const handleChangePasswordSubmit = (e) => {
+  const handleChangePasswordSubmit = async (e) => {
     e.preventDefault();
     setPasswordError('');
     setPasswordSuccess('');
@@ -324,16 +384,26 @@ const MyAccount = () => {
       setPasswordError('New password and confirmation do not match.');
       return;
     }
-    if (newPassword.length < 6) {
-      setPasswordError('Password must be at least 6 characters long.');
+    if (newPassword.length < 8) {
+      setPasswordError('New password must be at least 8 characters long.');
       return;
     }
 
-    setPasswordSuccess('🔒 Password changed securely! (Simulated)');
-    setOldPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
-    setTimeout(() => setPasswordSuccess(''), 3000);
+    try {
+      await API.post('/auth/change-password', {
+        currentPassword: oldPassword,
+        newPassword: newPassword,
+        confirmNewPassword: confirmPassword
+      });
+      setPasswordSuccess('Password changed successfully.');
+      setOldPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setTimeout(() => setPasswordSuccess(''), 4000);
+    } catch (err) {
+      console.error('Password change error:', err);
+      setPasswordError(err.response?.data?.error || 'Failed to change password. Please check your credentials.');
+    }
   };
 
   // Logout Action
@@ -353,7 +423,8 @@ const MyAccount = () => {
   const historySubs = subscriptions.filter(s => s.status === 'cancelled' || s.status === 'expired');
 
   const totalSavings = activeSubs.reduce((sum, s) => sum + Math.round((s.product_price || 150) * 0.15), 0) + (orders.length * 20);
-  const loyaltyStatus = activeSubs.length > 0 ? 'Gold VIP Member' : 'Silver Elite Member';
+  const membership = calculateMembership(subscriptions, orders);
+  const loyaltyStatus = membership.currentTier.name;
 
   return (
     <div className="flex min-h-[calc(100vh-64px)]">
@@ -387,6 +458,7 @@ const MyAccount = () => {
                   src={profilePic}
                   alt="Profile"
                   className="w-24 h-24 rounded-full object-cover border-4 border-brand-100 dark:border-warmgray-750"
+                  loading="lazy"
                 />
                 <label className="absolute bottom-0 right-0 p-1.5 bg-brand-500 hover:bg-brand-600 text-white rounded-full cursor-pointer shadow-md transition-colors">
                   <Edit2 className="w-3.5 h-3.5" />
@@ -402,9 +474,9 @@ const MyAccount = () => {
 
               {/* Loyalty Status */}
               <div className="w-full pt-4 border-t border-warmgray-50 dark:border-warmgray-750 flex flex-col items-center space-y-1">
-                <span className="text-[10px] font-bold text-brand-600 bg-brand-50 px-2.5 py-0.5 rounded-full dark:bg-brand-950/40 dark:text-brand-400 flex items-center space-x-1">
-                  <Star className="w-3.5 h-3.5 fill-current" />
-                  <span>{loyaltyStatus}</span>
+                <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center space-x-1 ${membership.currentTier.badgeClass}`}>
+                  <span>{membership.currentTier.icon}</span>
+                  <span>{membership.currentTier.name}</span>
                 </span>
                 <span className="text-[10px] text-warmgray-400">Total Savings: <span className="font-bold text-green-600 dark:text-green-400">₹{totalSavings}</span></span>
               </div>
@@ -1020,39 +1092,128 @@ const MyAccount = () => {
                     </h2>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="p-5 bg-gradient-to-br from-brand-500 to-orange-600 text-white rounded-2xl flex flex-col justify-between min-h-[140px] shadow-lg shadow-brand-500/10">
+                  {/* Main Grid: Membership Card & Savings Card */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Membership status card */}
+                    <div className="p-6 bg-gradient-to-br from-brand-500 to-orange-600 text-white rounded-3xl flex flex-col justify-between min-h-[160px] shadow-lg shadow-brand-500/10 animate-fadein">
                       <div>
-                        <span className="text-[10px] font-black uppercase tracking-wider bg-white/20 px-2 py-0.5 rounded-md">Membership Tier</span>
-                        <h3 className="text-xl font-extrabold font-display mt-2">{loyaltyStatus}</h3>
+                        <div className="flex justify-between items-center">
+                          <span className="text-[9px] font-black uppercase tracking-wider bg-white/20 px-2 py-0.5 rounded-md">Membership Tier</span>
+                          <span className="text-xl">{membership.currentTier.icon}</span>
+                        </div>
+                        <h3 className="text-2xl font-black font-display mt-2">{membership.currentTier.name}</h3>
                       </div>
-                      <p className="text-xs text-brand-100">Unlock VIP dispatches & priority slots.</p>
+                      
+                      {membership.nextTier ? (
+                        <div className="space-y-1.5 mt-4">
+                          <div className="flex justify-between text-[9px] font-bold uppercase tracking-wider text-brand-100">
+                            <span>Progress to {membership.nextTier.name}</span>
+                            <span>{membership.progress}%</span>
+                          </div>
+                          <div className="w-full bg-white/20 h-1.5 rounded-full overflow-hidden">
+                            <div className="bg-white h-full rounded-full transition-all duration-500" style={{ width: `${membership.progress}%` }}></div>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-[10px] text-brand-100 font-bold flex items-center space-x-1 mt-4">
+                          <Sparkles className="w-3.5 h-3.5 fill-current text-yellow-300" />
+                          <span>Highest Rank Achieved! VIP Member benefits active.</span>
+                        </p>
+                      )}
                     </div>
 
-                    <div className="p-5 bg-warmgray-50 border border-warmgray-150 dark:bg-warmgray-900 dark:border-warmgray-800 rounded-2xl flex flex-col justify-between min-h-[140px]">
+                    {/* Savings card */}
+                    <div className="p-6 bg-warmgray-50 border border-warmgray-150 dark:bg-warmgray-900 dark:border-warmgray-800 rounded-3xl flex flex-col justify-between min-h-[160px]">
                       <div>
-                        <span className="text-[10px] font-bold text-warmgray-400 uppercase tracking-widest block">Total Savings Unlocked</span>
-                        <p className="text-3xl font-black text-green-600 dark:text-green-400 mt-2">₹{totalSavings}</p>
+                        <span className="text-[9px] font-bold text-warmgray-450 dark:text-warmgray-400 uppercase tracking-widest block">Total Savings Unlocked</span>
+                        <p className="text-4xl font-black text-green-600 dark:text-green-400 mt-2">₹{totalSavings}</p>
                       </div>
-                      <p className="text-[10px] text-warmgray-450 font-semibold">15% saved on subscriptions & free delivery bonuses.</p>
+                      <p className="text-[10.5px] text-warmgray-600 dark:text-warmgray-300 font-medium pt-2 border-t border-warmgray-100 dark:border-warmgray-800/80 leading-relaxed">
+                        Saved from active subscription renewals & special combo membership benefits.
+                      </p>
                     </div>
                   </div>
 
+                  {/* Loyalty Stats Summary Section */}
+                  <div className="bg-white border border-warmgray-100 dark:bg-warmgray-800 dark:border-warmgray-700 p-5 rounded-3xl space-y-4">
+                    <h3 className="text-xs font-bold text-warmgray-950 uppercase tracking-wider dark:text-white">Your Loyalty Stats</h3>
+                    <div className="grid grid-cols-3 gap-4 text-center">
+                      <div className="p-3 bg-warmgray-50 dark:bg-warmgray-900 rounded-2xl border border-warmgray-100 dark:border-warmgray-750">
+                        <p className="text-[9px] text-warmgray-400 uppercase font-bold tracking-wider">Active Subscriptions</p>
+                        <p className="text-xl font-black text-warmgray-900 dark:text-white mt-1">{membership.stats.subscriptions}</p>
+                      </div>
+                      <div className="p-3 bg-warmgray-50 dark:bg-warmgray-900 rounded-2xl border border-warmgray-100 dark:border-warmgray-750">
+                        <p className="text-[9px] text-warmgray-400 uppercase font-bold tracking-wider">Total Orders (Non-Cancelled)</p>
+                        <p className="text-xl font-black text-warmgray-900 dark:text-white mt-1">{membership.stats.orders}</p>
+                      </div>
+                      <div className="p-3 bg-warmgray-50 dark:bg-warmgray-900 rounded-2xl border border-warmgray-100 dark:border-warmgray-750">
+                        <p className="text-[9px] text-warmgray-400 uppercase font-bold tracking-wider">Total Spending</p>
+                        <p className="text-xl font-black text-warmgray-900 dark:text-white mt-1">₹{membership.stats.spending}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Compare Tiers / Threshold breakdown */}
                   <div className="space-y-3">
-                    <h3 className="text-xs font-bold text-warmgray-900 uppercase tracking-wider dark:text-white">Active Subscription Benefits</h3>
-                    <div className="space-y-2 text-xs">
-                      <div className="p-3 bg-white border border-warmgray-150 rounded-xl dark:bg-warmgray-800 dark:border-warmgray-750 flex items-center space-x-2">
-                        <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
-                        <span className="font-semibold text-warmgray-750 dark:text-warmgray-300">Save 15% on every delivery cycle compared to one-time catalog orders.</span>
-                      </div>
-                      <div className="p-3 bg-white border border-warmgray-150 rounded-xl dark:bg-warmgray-800 dark:border-warmgray-750 flex items-center space-x-2">
-                        <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
-                        <span className="font-semibold text-warmgray-750 dark:text-warmgray-300">Free delivery threshold drops to ₹200 on all consolidated checkout carts.</span>
-                      </div>
-                      <div className="p-3 bg-white border border-warmgray-150 rounded-xl dark:bg-warmgray-800 dark:border-warmgray-750 flex items-center space-x-2">
-                        <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
-                        <span className="font-semibold text-warmgray-750 dark:text-warmgray-300">Custom dispatch calendar with pause/resume operations at zero cancel penalties.</span>
-                      </div>
+                    <h3 className="text-xs font-bold text-warmgray-905 uppercase tracking-wider dark:text-white">Membership Tier Benefits Comparison</h3>
+                    <div className="space-y-3">
+                      {Object.values(MEMBERSHIP_TIERS).map((tier) => {
+                        const isCurrent = membership.currentTier.key === tier.key;
+                        const isLocked = !isCurrent && 
+                          (membership.stats.subscriptions < tier.thresholds.subscriptions && 
+                           membership.stats.orders < tier.thresholds.orders && 
+                           membership.stats.spending < tier.thresholds.spending);
+                        
+                        return (
+                          <div 
+                            key={tier.key} 
+                            className={`p-5 rounded-2xl border transition-all ${
+                              isCurrent 
+                                ? 'bg-brand-50/20 border-brand-200 dark:bg-brand-950/10 dark:border-brand-900/40 shadow-sm' 
+                                : 'bg-white border-warmgray-150 dark:bg-warmgray-800 dark:border-warmgray-750'
+                            }`}
+                          >
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-warmgray-100 dark:border-warmgray-700/60">
+                              <div className="flex items-center space-x-2">
+                                <span className="text-lg">{tier.icon}</span>
+                                <h4 className="text-sm font-bold text-warmgray-900 dark:text-white font-display">{tier.name}</h4>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                {/* Requirements tag */}
+                                {tier.key !== 'BRONZE' && (
+                                  <span className="text-[9px] text-warmgray-500 font-bold bg-warmgray-100 dark:bg-warmgray-900 px-2 py-0.5 rounded">
+                                    Requires: {tier.thresholds.subscriptions} Sub, {tier.thresholds.orders} Orders, or ₹{tier.thresholds.spending} Spend
+                                  </span>
+                                )}
+                                {/* Status Badge */}
+                                {isCurrent ? (
+                                  <span className="text-[9px] bg-green-50 text-green-600 px-2.5 py-0.5 rounded-full dark:bg-green-950/40 dark:text-green-400 font-bold uppercase tracking-wider">
+                                    Current Rank
+                                  </span>
+                                ) : isLocked ? (
+                                  <span className="text-[9px] bg-warmgray-100 text-warmgray-400 px-2.5 py-0.5 rounded-full dark:bg-warmgray-900 dark:text-warmgray-500 font-bold uppercase tracking-wider">
+                                    Locked
+                                  </span>
+                                ) : (
+                                  <span className="text-[9px] bg-brand-50 text-brand-600 px-2.5 py-0.5 rounded-full dark:bg-brand-950/20 dark:text-brand-400 font-bold uppercase tracking-wider">
+                                    Unlocked
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {/* Benefits list */}
+                            <div className="pt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                              {tier.benefits.map((benefit, bIdx) => (
+                                <div key={bIdx} className="flex items-start space-x-2">
+                                  <CheckCircle2 className={`w-4 h-4 shrink-0 mt-0.5 ${isCurrent ? 'text-brand-500' : 'text-green-500'}`} />
+                                  <span className="text-warmgray-700 dark:text-warmgray-300 font-medium">{benefit}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -1086,33 +1247,78 @@ const MyAccount = () => {
                     <div className="space-y-3 max-w-md">
                       <div className="space-y-1">
                         <label className="text-warmgray-500 block">Current Password</label>
-                        <input
-                          type="password"
-                          required
-                          value={oldPassword}
-                          onChange={(e) => setOldPassword(e.target.value)}
-                          className="w-full px-4 py-2.5 bg-warmgray-50 border border-warmgray-200 rounded-xl dark:bg-warmgray-900 dark:border-warmgray-750 dark:text-white"
-                        />
+                        <div className="relative">
+                          <input
+                            ref={oldPasswordRef}
+                            type={showOldPassword ? 'text' : 'password'}
+                            required
+                            value={oldPassword}
+                            onChange={(e) => setOldPassword(e.target.value)}
+                            className="w-full pl-4 pr-10 py-2.5 bg-warmgray-50 border border-warmgray-200 rounded-xl dark:bg-warmgray-900 dark:border-warmgray-750 dark:text-white focus:outline-none focus:border-brand-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={toggleOldPassword}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-warmgray-400 hover:text-warmgray-600 focus:outline-none transition-all duration-200 active:scale-90 flex items-center justify-center"
+                            aria-label={showOldPassword ? "Hide Password" : "Show Password"}
+                            title={showOldPassword ? "Hide Password" : "Show Password"}
+                          >
+                            <div className="relative w-5 h-5">
+                              <EyeOff className={`absolute inset-0 w-full h-full transition-all duration-200 ${showOldPassword ? 'opacity-100 scale-100 rotate-0' : 'opacity-0 scale-75 -rotate-12 pointer-events-none'}`} />
+                              <Eye className={`absolute inset-0 w-full h-full transition-all duration-200 ${!showOldPassword ? 'opacity-100 scale-100 rotate-0' : 'opacity-0 scale-75 rotate-12 pointer-events-none'}`} />
+                            </div>
+                          </button>
+                        </div>
                       </div>
                       <div className="space-y-1">
                         <label className="text-warmgray-500 block">New Password</label>
-                        <input
-                          type="password"
-                          required
-                          value={newPassword}
-                          onChange={(e) => setNewPassword(e.target.value)}
-                          className="w-full px-4 py-2.5 bg-warmgray-50 border border-warmgray-200 rounded-xl dark:bg-warmgray-900 dark:border-warmgray-750 dark:text-white"
-                        />
+                        <div className="relative">
+                          <input
+                            ref={newPasswordRef}
+                            type={showNewPassword ? 'text' : 'password'}
+                            required
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            className="w-full pl-4 pr-10 py-2.5 bg-warmgray-50 border border-warmgray-200 rounded-xl dark:bg-warmgray-900 dark:border-warmgray-750 dark:text-white focus:outline-none focus:border-brand-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={toggleNewPassword}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-warmgray-400 hover:text-warmgray-600 focus:outline-none transition-all duration-200 active:scale-90 flex items-center justify-center"
+                            aria-label={showNewPassword ? "Hide Password" : "Show Password"}
+                            title={showNewPassword ? "Hide Password" : "Show Password"}
+                          >
+                            <div className="relative w-5 h-5">
+                              <EyeOff className={`absolute inset-0 w-full h-full transition-all duration-200 ${showNewPassword ? 'opacity-100 scale-100 rotate-0' : 'opacity-0 scale-75 -rotate-12 pointer-events-none'}`} />
+                              <Eye className={`absolute inset-0 w-full h-full transition-all duration-200 ${!showNewPassword ? 'opacity-100 scale-100 rotate-0' : 'opacity-0 scale-75 rotate-12 pointer-events-none'}`} />
+                            </div>
+                          </button>
+                        </div>
                       </div>
                       <div className="space-y-1">
                         <label className="text-warmgray-500 block">Confirm New Password</label>
-                        <input
-                          type="password"
-                          required
-                          value={confirmPassword}
-                          onChange={(e) => setConfirmPassword(e.target.value)}
-                          className="w-full px-4 py-2.5 bg-warmgray-50 border border-warmgray-200 rounded-xl dark:bg-warmgray-900 dark:border-warmgray-750 dark:text-white"
-                        />
+                        <div className="relative">
+                          <input
+                            ref={confirmPasswordRef}
+                            type={showConfirmPassword ? 'text' : 'password'}
+                            required
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            className="w-full pl-4 pr-10 py-2.5 bg-warmgray-50 border border-warmgray-200 rounded-xl dark:bg-warmgray-900 dark:border-warmgray-750 dark:text-white focus:outline-none focus:border-brand-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={toggleConfirmPassword}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-warmgray-400 hover:text-warmgray-600 focus:outline-none transition-all duration-200 active:scale-90 flex items-center justify-center"
+                            aria-label={showConfirmPassword ? "Hide Password" : "Show Password"}
+                            title={showConfirmPassword ? "Hide Password" : "Show Password"}
+                          >
+                            <div className="relative w-5 h-5">
+                              <EyeOff className={`absolute inset-0 w-full h-full transition-all duration-200 ${showConfirmPassword ? 'opacity-100 scale-100 rotate-0' : 'opacity-0 scale-75 -rotate-12 pointer-events-none'}`} />
+                              <Eye className={`absolute inset-0 w-full h-full transition-all duration-200 ${!showConfirmPassword ? 'opacity-100 scale-100 rotate-0' : 'opacity-0 scale-75 rotate-12 pointer-events-none'}`} />
+                            </div>
+                          </button>
+                        </div>
                       </div>
                     </div>
 

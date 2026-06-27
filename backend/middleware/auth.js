@@ -12,6 +12,7 @@ const authenticateToken = (req, res, next) => {
 
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) {
+      console.warn(`[AUTH FAILURE] Invalid or expired token: ${err.message}`);
       return res.status(403).json({ error: 'Invalid or expired token' });
     }
     req.user = user;
@@ -23,6 +24,7 @@ const isAdmin = (req, res, next) => {
   if (req.user && req.user.role === 'admin') {
     next();
   } else {
+    console.warn(`[AUTH FAILURE] Non-admin access attempted by user: ${req.user ? req.user.email : 'Unknown'}`);
     return res.status(403).json({ error: 'Admin access required' });
   }
 };

@@ -1,12 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Eye, EyeOff, User, Mail, Lock, Phone, MapPin } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { Eye, EyeOff, User, Mail, Lock, Phone, MapPin, AlertCircle } from 'lucide-react';
 import API from '../utils/api';
+import { useToast } from '../utils/ToastContext';
 
 const LoginRegister = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const [isRegister, setIsRegister] = useState(false);
+  const toast = useToast();
 
   // Form states
   const [name, setName] = useState('');
@@ -21,6 +24,43 @@ const LoginRegister = () => {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Field validation errors
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+
+  // Shake animation states
+  const [emailShake, setEmailShake] = useState(false);
+  const [passwordShake, setPasswordShake] = useState(false);
+
+  // DOM Refs
+  const passwordRef = useRef(null);
+
+  const triggerEmailShake = () => {
+    setEmailShake(true);
+    setTimeout(() => setEmailShake(false), 500);
+  };
+
+  const triggerPasswordShake = () => {
+    setPasswordShake(true);
+    setTimeout(() => setPasswordShake(false), 500);
+  };
+
+  const handleTogglePassword = (e) => {
+    e.preventDefault();
+    const input = passwordRef.current;
+    if (input) {
+      const start = input.selectionStart;
+      const end = input.selectionEnd;
+      setShowPassword(prev => !prev);
+      setTimeout(() => {
+        input.focus();
+        input.setSelectionRange(start, end);
+      }, 0);
+    } else {
+      setShowPassword(prev => !prev);
+    }
+  };
+
   // Sync with query params
   useEffect(() => {
     if (searchParams.get('register') === 'true') {
@@ -28,12 +68,70 @@ const LoginRegister = () => {
     } else {
       setIsRegister(false);
     }
+    // Clear errors when toggling modes
+    setEmailError('');
+    setPasswordError('');
+    setError('');
   }, [searchParams]);
+
+  // Reactive email format check
+  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return;
+
+    setEmailError('');
+    setPasswordError('');
     setError('');
     setSuccess('');
+
+    // Perform client-side validation
+    let hasError = false;
+    if (!isRegister) {
+      if (!email) {
+        setEmailError('Email is required.');
+        triggerEmailShake();
+        hasError = true;
+      } else if (!isEmailValid) {
+        setEmailError('Please enter a valid email address.');
+        triggerEmailShake();
+        hasError = true;
+      }
+
+      if (!password) {
+        setPasswordError('Password is required.');
+        triggerPasswordShake();
+        hasError = true;
+      }
+
+      if (hasError) return;
+    } else {
+      if (!name) {
+        setError('Full Name is required.');
+        hasError = true;
+      }
+      if (!email) {
+        setEmailError('Email is required.');
+        triggerEmailShake();
+        hasError = true;
+      } else if (!isEmailValid) {
+        setEmailError('Please enter a valid email address.');
+        triggerEmailShake();
+        hasError = true;
+      }
+      if (!password) {
+        setPasswordError('Password is required.');
+        triggerPasswordShake();
+        hasError = true;
+      }
+      if (!phone) {
+        setError('Phone Number is required.');
+        hasError = true;
+      }
+      if (hasError) return;
+    }
+
     setLoading(true);
 
     try {
@@ -43,12 +141,12 @@ const LoginRegister = () => {
         localStorage.setItem('sharadha_token', res.data.token);
         localStorage.setItem('sharadha_user', JSON.stringify(res.data.user));
         
-        setSuccess('Registration successful! Redirecting...');
+        toast.success(`✅ Welcome to Sharadha, ${res.data.user.name}!`);
+        const from = location.state?.from?.pathname || (res.data.user.role === 'admin' ? '/admin' : '/dashboard');
         setTimeout(() => {
-          if (res.data.user.role === 'admin') navigate('/admin');
-          else navigate('/dashboard');
+          navigate(from, { replace: true });
           window.location.reload();
-        }, 1500);
+        }, 1000);
 
       } else {
         // Login API call
@@ -56,16 +154,44 @@ const LoginRegister = () => {
         localStorage.setItem('sharadha_token', res.data.token);
         localStorage.setItem('sharadha_user', JSON.stringify(res.data.user));
         
-        setSuccess('Login successful! Redirecting...');
+        toast.success(`✅ Welcome back, ${res.data.user.name}!`);
+        const from = location.state?.from?.pathname || (res.data.user.role === 'admin' ? '/admin' : '/dashboard');
         setTimeout(() => {
-          if (res.data.user.role === 'admin') navigate('/admin');
-          else navigate('/dashboard');
+          navigate(from, { replace: true });
           window.location.reload();
-        }, 1500);
+        }, 1000);
       }
     } catch (err) {
       console.error(err);
-      setError(err.response?.data?.error || 'Authentication failed. Please check your credentials.');
+      
+      let backendError = 'Authentication failed. Please check your credentials.';
+      let field = null;
+
+      if (err.response) {
+        backendError = err.response.data?.error || backendError;
+        field = err.response.data?.field;
+      } else if (err.request) {
+        backendError = 'Network error. Please check your internet connection and try again.';
+      } else {
+        backendError = err.message || backendError;
+      }
+
+      if (field === 'email') {
+        setEmailError(backendError);
+        toast.error(`❌ ${backendError}`);
+        triggerEmailShake();
+      } else if (field === 'password') {
+        setPasswordError(backendError);
+        toast.error(`⚠️ ${backendError}`);
+        triggerPasswordShake();
+        setPassword('');
+        setTimeout(() => {
+          passwordRef.current?.focus();
+        }, 50);
+      } else {
+        setError(backendError);
+        toast.error(`❌ ${backendError}`);
+      }
     } finally {
       setLoading(false);
     }
@@ -73,8 +199,12 @@ const LoginRegister = () => {
 
   // Quick fill helper for easy user testing!
   const fillCredentials = (type) => {
+    setEmailError('');
+    setPasswordError('');
+    setError('');
+    
     if (type === 'admin') {
-      setEmail('admin@sharadha.com');
+      setEmail('admin@sharadafoodhub.com');
       setPassword('admin123');
       setRole('admin');
       setIsRegister(false);
@@ -99,14 +229,14 @@ const LoginRegister = () => {
           </p>
         </div>
 
-        {/* Notifications */}
+        {/* General/Registration Notifications */}
         {error && (
-          <div className="p-3 bg-red-50 text-red-700 text-xs font-semibold rounded-xl border border-red-150 dark:bg-red-950/35 dark:text-red-400 dark:border-red-900/50">
+          <div className="p-3 bg-red-50 text-red-700 text-xs font-semibold rounded-xl border border-red-150 dark:bg-red-950/35 dark:text-red-400 dark:border-red-900/50 animate-fadein">
             {error}
           </div>
         )}
         {success && (
-          <div className="p-3 bg-green-50 text-green-700 text-xs font-semibold rounded-xl border border-green-150 dark:bg-green-950/35 dark:text-green-400 dark:border-green-900/50">
+          <div className="p-3 bg-green-50 text-green-700 text-xs font-semibold rounded-xl border border-green-150 dark:bg-green-950/35 dark:text-green-400 dark:border-green-900/50 animate-fadein">
             {success}
           </div>
         )}
@@ -130,7 +260,7 @@ const LoginRegister = () => {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
           {isRegister && (
             <div className="space-y-1">
               <label className="text-xs font-bold text-warmgray-500 uppercase tracking-wider dark:text-warmgray-400">Full Name</label>
@@ -138,7 +268,6 @@ const LoginRegister = () => {
                 <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-warmgray-400" />
                 <input
                   type="text"
-                  required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Rajesh Kumar"
@@ -147,43 +276,112 @@ const LoginRegister = () => {
               </div>
             </div>
           )}
-
-          <div className="space-y-1">
+          <div className={`space-y-1 ${emailShake ? 'animate-shake' : ''}`}>
             <label className="text-xs font-bold text-warmgray-500 uppercase tracking-wider dark:text-warmgray-400">Email Address</label>
             <div className="relative">
-              <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-warmgray-400" />
+              {emailError ? (
+                <AlertCircle className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-red-500" />
+              ) : (
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-warmgray-400" />
+              )}
               <input
                 type="email"
-                required
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setEmailError('');
+                }}
                 placeholder="customer@example.com"
-                className="w-full pl-10 pr-4 py-3 bg-warmgray-50 rounded-xl border border-warmgray-200 focus:outline-none focus:border-brand-500 dark:bg-warmgray-800 dark:border-warmgray-700 dark:text-white"
+                className={`w-full pl-10 pr-4 py-3 bg-warmgray-50 rounded-xl border ${
+                  emailError
+                    ? 'border-red-500 focus:border-red-500 dark:border-red-500'
+                    : 'border-warmgray-200 focus:border-brand-500 dark:border-warmgray-700'
+                } dark:bg-warmgray-800 dark:text-white focus:outline-none`}
               />
             </div>
+            
+            {/* Real-time Validation Indicator */}
+            <div className="text-[11px] mt-1 font-medium">
+              {email ? (
+                isEmailValid ? (
+                  <span className="text-green-600 dark:text-green-400">✓ Valid email</span>
+                ) : (
+                  <span className="text-red-500 dark:text-red-400">✗ Invalid email format</span>
+                )
+              ) : (
+                <span className="text-red-500 dark:text-red-400">✗ Empty</span>
+              )}
+            </div>
+
+            {/* Error Message */}
+            {emailError && (
+              <p className="text-xs font-semibold text-red-600 dark:text-red-400 mt-1">{emailError}</p>
+            )}
           </div>
 
-          <div className="space-y-1">
+          <div className={`space-y-1 ${passwordShake ? 'animate-shake' : ''}`}>
             <label className="text-xs font-bold text-warmgray-500 uppercase tracking-wider dark:text-warmgray-400">Password</label>
             <div className="relative">
-              <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-warmgray-400" />
+              {passwordError ? (
+                <AlertCircle className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-red-500" />
+              ) : (
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-warmgray-400" />
+              )}
               <input
+                ref={passwordRef}
                 type={showPassword ? 'text' : 'password'}
-                required
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setPasswordError('');
+                }}
                 placeholder="••••••••"
-                className="w-full pl-10 pr-10 py-3 bg-warmgray-50 rounded-xl border border-warmgray-200 focus:outline-none focus:border-brand-500 dark:bg-warmgray-800 dark:border-warmgray-700 dark:text-white"
+                className={`w-full pl-10 pr-10 py-3 bg-warmgray-50 rounded-xl border ${
+                  passwordError
+                    ? 'border-red-500 focus:border-red-500 dark:border-red-500'
+                    : 'border-warmgray-200 focus:border-brand-500 dark:border-warmgray-700'
+                } dark:bg-warmgray-800 dark:text-white focus:outline-none`}
               />
               <button
                 type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-warmgray-400 hover:text-warmgray-600"
+                onClick={handleTogglePassword}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-warmgray-400 hover:text-warmgray-600 focus:outline-none transition-all duration-200 active:scale-90 flex items-center justify-center"
+                aria-label={showPassword ? "Hide Password" : "Show Password"}
+                title={showPassword ? "Hide Password" : "Show Password"}
               >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                <div className="relative w-5 h-5">
+                  <EyeOff className={`absolute inset-0 w-full h-full transition-all duration-200 ${showPassword ? 'opacity-100 scale-100 rotate-0' : 'opacity-0 scale-75 -rotate-12 pointer-events-none'}`} />
+                  <Eye className={`absolute inset-0 w-full h-full transition-all duration-200 ${!showPassword ? 'opacity-100 scale-100 rotate-0' : 'opacity-0 scale-75 rotate-12 pointer-events-none'}`} />
+                </div>
               </button>
             </div>
+
+            {/* Real-time Validation Indicator */}
+            <div className="text-[11px] mt-1 font-medium">
+              {password ? (
+                <span className="text-green-600 dark:text-green-400">✓ Entered</span>
+              ) : (
+                <span className="text-red-500 dark:text-red-400">✗ Empty</span>
+              )}
+            </div>
+
+            {/* Error Message */}
+            {passwordError && (
+              <p className="text-xs font-semibold text-red-600 dark:text-red-400 mt-1">{passwordError}</p>
+            )}
           </div>
+
+          {!isRegister && (
+            <div className="text-right">
+              <button
+                type="button"
+                onClick={() => navigate('/forgot-password')}
+                className="text-[11px] font-bold text-warmgray-400 hover:text-brand-500 transition-colors"
+              >
+                Forgot Password?
+              </button>
+            </div>
+          )}
 
           {isRegister && (
             <>
@@ -193,7 +391,6 @@ const LoginRegister = () => {
                   <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-warmgray-400" />
                   <input
                     type="tel"
-                    required
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     placeholder="9876543210"
@@ -207,7 +404,6 @@ const LoginRegister = () => {
                 <div className="relative">
                   <MapPin className="absolute left-3.5 top-3 w-4.5 h-4.5 text-warmgray-400" />
                   <textarea
-                    required
                     rows={2}
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
@@ -234,9 +430,21 @@ const LoginRegister = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl shadow-md shadow-brand-500/10 focus:outline-none transition-colors mt-4 disabled:opacity-50"
+            className="w-full py-3 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl shadow-md shadow-brand-500/10 focus:outline-none transition-colors mt-4 disabled:opacity-50 flex items-center justify-center space-x-2"
           >
-            {loading ? 'Processing...' : isRegister ? 'Register Account' : 'Sign In'}
+            {loading ? (
+              <>
+                <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Processing...</span>
+              </>
+            ) : isRegister ? (
+              'Register Account'
+            ) : (
+              'Sign In'
+            )}
           </button>
         </form>
 

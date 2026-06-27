@@ -28,7 +28,7 @@ async function init() {
 
     const adminUser = await query.run(
       'INSERT INTO users (name, email, password_hash, phone, role, address) VALUES (?, ?, ?, ?, ?, ?)',
-      ['Sharadha Admin', 'admin@sharadha.com', adminPasswordHash, '9876543210', 'admin', 'Admin HQ, Chennai']
+      ['Sharadha Admin', 'admin@sharadafoodhub.com', adminPasswordHash, '9876543210', 'admin', 'Admin HQ, Chennai']
     );
     const customerUser = await query.run(
       'INSERT INTO users (name, email, password_hash, phone, role, address) VALUES (?, ?, ?, ?, ?, ?)',

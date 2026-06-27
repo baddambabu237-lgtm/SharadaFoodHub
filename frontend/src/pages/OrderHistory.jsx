@@ -99,7 +99,8 @@ const OrderHistory = () => {
     csvContent += "Product Name,Weight,Price,Quantity,Subtotal\n";
 
     items.forEach(item => {
-      csvContent += `"${item.name}","${item.weight}",${item.price},${item.quantity},${item.price * item.quantity}\n`;
+      const productName = item.product_name || item.name || 'Unknown Product';
+      csvContent += `"${productName}","${item.weight || ''}",${item.price},${item.quantity},${item.price * item.quantity}\n`;
     });
 
     csvContent += `,,,,Total Amount,₹${order.total_amount}\n`;
@@ -118,14 +119,17 @@ const OrderHistory = () => {
     const printWindow = window.open('', '_blank', 'width=800,height=600');
     if (!printWindow) return;
     
-    const itemsHtml = items.map(item => `
+    const itemsHtml = items.map(item => {
+      const productName = item.product_name || item.name || 'Unknown Product';
+      return `
       <tr>
-        <td style="padding: 10px; border-bottom: 1px solid #eee;">${item.name} (${item.weight})</td>
+        <td style="padding: 10px; border-bottom: 1px solid #eee;">${productName} (${item.weight || ''})</td>
         <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: center;">₹${item.price}</td>
         <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
         <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right; font-weight: bold;">₹${item.price * item.quantity}</td>
       </tr>
-    `).join('');
+    `;
+    }).join('');
 
     const trackingHtml = dispatch ? `
       <div style="margin-top: 20px; padding: 15px; background: #fafafa; border-radius: 12px; border: 1px solid #eee;">
@@ -315,15 +319,24 @@ const OrderHistory = () => {
             <div className="space-y-3">
               <p className="font-bold font-display text-warmgray-900 dark:text-white">Order Items</p>
               <div className="divide-y divide-warmgray-50 dark:divide-warmgray-700 border border-warmgray-100 rounded-2xl overflow-hidden dark:border-warmgray-700">
-                {orderItems.map((item) => (
-                  <div key={item.id} className="p-3 bg-warmgray-50/40 dark:bg-warmgray-900/20 flex justify-between items-center">
-                    <div>
-                      <p className="font-bold text-warmgray-800 dark:text-white">{item.name}</p>
-                      <p className="text-[10px] text-warmgray-400">{item.weight} x {item.quantity}</p>
+              {orderItems.length === 0 ? (
+                <div className="p-4 text-center text-warmgray-400 text-xs italic">
+                  No product details found for this order.
+                </div>
+              ) : (
+                orderItems.map((item) => {
+                  const productName = item.product_name || item.name || 'Unknown Product';
+                  return (
+                    <div key={item.id || item.product_id || productName} className="p-3 bg-warmgray-50/40 dark:bg-warmgray-900/20 flex justify-between items-center">
+                      <div>
+                        <p className="font-bold text-warmgray-800 dark:text-white">{productName}</p>
+                        <p className="text-[10px] text-warmgray-400">{item.weight || ''} x {item.quantity}</p>
+                      </div>
+                      <span className="font-bold text-warmgray-950 dark:text-white">₹{(item.price * item.quantity).toFixed(0)}</span>
                     </div>
-                    <span className="font-bold text-warmgray-950 dark:text-white">₹{item.price * item.quantity}</span>
-                  </div>
-                ))}
+                  );
+                })
+              )}
                 <div className="p-3 flex justify-between items-center font-bold bg-warmgray-50 dark:bg-warmgray-900 text-warmgray-900 dark:text-white border-t border-warmgray-100 dark:border-warmgray-700">
                   <span>Grand Total Paid</span>
                   <span className="text-brand-600 dark:text-brand-400">₹{selectedOrder.total_amount}</span>
@@ -455,9 +468,10 @@ const OrderHistory = () => {
                     >
                       <option value="">-- Choose cancellation reason --</option>
                       <option value="Ordered by mistake">Ordered by mistake</option>
-                      <option value="Found a better option">Found a better option</option>
-                      <option value="Delivery taking too long">Delivery taking too long</option>
-                      <option value="Changed my mind">Changed my mind</option>
+                      <option value="Too expensive">Too expensive</option>
+                      <option value="No longer needed">No longer needed</option>
+                      <option value="Delivery issue">Delivery issue</option>
+                      <option value="Product issue">Product issue</option>
                       <option value="Other">Other</option>
                     </select>
 

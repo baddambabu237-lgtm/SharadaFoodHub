@@ -117,7 +117,7 @@ async function runTests() {
     // Test 3: Login Admin
     console.log('Running Test 3: POST /api/auth/login (Admin)...');
     const adminLoginRes = await post('/api/auth/login', {
-      email: 'admin@sharadha.com',
+      email: 'admin@sharadafoodhub.com',
       password: 'admin123'
     });
     if (adminLoginRes.statusCode === 200 && adminLoginRes.data.user.role === 'admin') {

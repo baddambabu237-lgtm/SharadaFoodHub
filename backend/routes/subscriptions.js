@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { query } = require('../db/db');
 const { authenticateToken } = require('../middleware/auth');
+const cache = require('../utils/cache');
 
 // Helper to compute next dispatch date
 function calculateNextDispatchDate(frequency, baseDate = new Date()) {
@@ -135,6 +136,9 @@ router.post('/bulk', authenticateToken, async (req, res) => {
       [customer_id, `Your subscription for ${items.length} items was activated successfully! First order tracking: OR-${orderId}.`, 'info']
     );
 
+    // Invalidate stats cache
+    cache.deletePattern('stats');
+
     res.status(201).json({
       message: 'Subscriptions created and first order generated',
       orderId,
@@ -248,6 +252,9 @@ router.post('/', authenticateToken, async (req, res) => {
       [customer_id, `Your subscription for ${product.name} has been activated successfully!`, 'info']
     );
 
+    // Invalidate stats cache
+    cache.deletePattern('stats');
+
     res.status(201).json({
       message: 'Subscription created and first order generated',
       subscriptionId,
@@ -293,13 +300,16 @@ router.put('/:id/pause', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Unauthorized' });
     }
 
-    await query.run('UPDATE subscriptions SET status = "paused" WHERE id = ?', [id]);
+    await query.run("UPDATE subscriptions SET status = 'paused' WHERE id = ?", [id]);
 
     // Send notification
     await query.run(
       'INSERT INTO notifications (user_id, message, type) VALUES (?, ?, ?)',
       [subscription.customer_id, 'Your subscription has been paused. We will not generate new deliveries until you resume.', 'info']
     );
+
+    // Invalidate stats cache
+    cache.deletePattern('stats');
 
     res.status(200).json({ message: 'Subscription paused successfully' });
   } catch (err) {
@@ -327,7 +337,7 @@ router.put('/:id/resume', authenticateToken, async (req, res) => {
     const nextDispatch = calculateNextDispatchDate(subscription.delivery_frequency);
 
     await query.run(
-      'UPDATE subscriptions SET status = "active", next_dispatch_date = ? WHERE id = ?',
+      "UPDATE subscriptions SET status = 'active', next_dispatch_date = ? WHERE id = ?",
       [nextDispatch, id]
     );
 
@@ -337,6 +347,9 @@ router.put('/:id/resume', authenticateToken, async (req, res) => {
       [subscription.customer_id, `Your subscription has been resumed. Your next delivery is scheduled for ${nextDispatch}.`, 'info']
     );
 
+    // Invalidate stats cache
+    cache.deletePattern('stats');
+
     res.status(200).json({ message: 'Subscription resumed successfully', next_dispatch_date: nextDispatch });
   } catch (err) {
     console.error('Resume subscription error:', err);
@@ -345,6 +358,63 @@ router.put('/:id/resume', authenticateToken, async (req, res) => {
 });
 
 // Cancel subscription
+router.post('/:id/cancel', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    if (!reason) {
+      return res.status(400).json({ error: 'Cancellation reason is required' });
+    }
+
+    const subscription = await query.get('SELECT * FROM subscriptions WHERE id = ?', [id]);
+
+    if (!subscription) {
+      return res.status(404).json({ error: 'Subscription not found' });
+    }
+
+    // Check ownership
+    if (subscription.customer_id !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    const prevStatus = subscription.status;
+
+    // 1. Update subscription status, reason, date, and user in PostgreSQL
+    await query.run(
+      "UPDATE subscriptions SET status = 'cancelled', cancellation_reason = ?, cancelled_at = NOW(), cancelled_by = ?, previous_status = ? WHERE id = ?",
+      [reason, req.user.role, prevStatus, id]
+    );
+
+    // 2. Fetch product and user name to send notifications and log
+    const product = await query.get('SELECT name FROM products WHERE id = ?', [subscription.product_id]);
+    const user = await query.get('SELECT name FROM users WHERE id = ?', [subscription.customer_id]);
+
+    // 3. Send customer notification
+    await query.run(
+      'INSERT INTO notifications (user_id, message, type) VALUES (?, ?, ?)',
+      [subscription.customer_id, `Your subscription for "${product.name}" has been cancelled. Reason: ${reason}.`, 'info']
+    );
+
+    // 4. Send admin notification
+    const admins = await query.all("SELECT id FROM users WHERE role = 'admin'");
+    for (const admin of admins) {
+      await query.run(
+        'INSERT INTO notifications (user_id, message, type) VALUES (?, ?, ?)',
+        [admin.id, `New Cancellation Request: Customer ${user.name} cancelled subscription for "${product.name}".`, 'alert']
+      );
+    }
+
+    // Invalidate stats cache
+    cache.deletePattern('stats');
+
+    res.status(200).json({ message: 'Subscription cancelled successfully' });
+  } catch (err) {
+    console.error('Cancel subscription error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 router.delete('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
@@ -359,13 +429,32 @@ router.delete('/:id', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Unauthorized' });
     }
 
-    await query.run('UPDATE subscriptions SET status = "cancelled" WHERE id = ?', [id]);
+    const prevStatus = subscription.status;
+    const reason = 'Other';
 
-    // Send notification
+    await query.run(
+      "UPDATE subscriptions SET status = 'cancelled', cancellation_reason = ?, cancelled_at = NOW(), cancelled_by = ?, previous_status = ? WHERE id = ?",
+      [reason, req.user.role, prevStatus, id]
+    );
+
+    const product = await query.get('SELECT name FROM products WHERE id = ?', [subscription.product_id]);
+    const user = await query.get('SELECT name FROM users WHERE id = ?', [subscription.customer_id]);
+
     await query.run(
       'INSERT INTO notifications (user_id, message, type) VALUES (?, ?, ?)',
-      [subscription.customer_id, 'Your subscription has been cancelled. Thank you for shopping with us!', 'info']
+      [subscription.customer_id, `Your subscription for "${product.name}" has been cancelled.`, 'info']
     );
+
+    const admins = await query.all("SELECT id FROM users WHERE role = 'admin'");
+    for (const admin of admins) {
+      await query.run(
+        'INSERT INTO notifications (user_id, message, type) VALUES (?, ?, ?)',
+        [admin.id, `New Cancellation Request: Customer ${user.name} cancelled subscription for "${product.name}".`, 'alert']
+      );
+    }
+
+    // Invalidate stats cache
+    cache.deletePattern('stats');
 
     res.status(200).json({ message: 'Subscription cancelled successfully' });
   } catch (err) {

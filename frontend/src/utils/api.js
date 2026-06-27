@@ -25,7 +25,10 @@ API.interceptors.request.use(
 API.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const requestUrl = error.config?.url || '';
+    const isAuthRequest = requestUrl.includes('/auth/login') || requestUrl.includes('/auth/register');
+    
+    if (error.response?.status === 401 && !isAuthRequest) {
       localStorage.removeItem('sharadha_token');
       localStorage.removeItem('sharadha_user');
       window.location.href = '/login';

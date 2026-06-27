@@ -3,10 +3,11 @@ import { Link } from 'react-router-dom';
 import {
   Package, Calendar, RefreshCw, AlertCircle, Sparkles, MessageCircle,
   ArrowRight, UserCog, User, ClipboardList, ShieldCheck, Play, Pause,
-  CreditCard, MapPin, Bell, ShoppingCart, Heart
+  CreditCard, MapPin, Bell, ShoppingCart, Heart, Star, CheckCircle2
 } from 'lucide-react';
 import API from '../utils/api';
 import Modal from '../components/Modal';
+import { calculateMembership } from '../utils/membership';
 
 const CustomerDashboard = () => {
   const userStr = localStorage.getItem('sharadha_user');
@@ -17,7 +18,10 @@ const CustomerDashboard = () => {
   const [dispatches, setDispatches] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [aiData, setAiData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [customerStats, setCustomerStats] = useState(null);
+  const [loadingStats, setLoadingStats] = useState(true);
+  const [loadingOrders, setLoadingOrders] = useState(true);
+  const [loadingNotifications, setLoadingNotifications] = useState(true);
   
   // Profile editing form states
   const [profileName, setProfileName] = useState(user?.name || '');
@@ -27,27 +31,52 @@ const CustomerDashboard = () => {
   const [profileSuccess, setProfileSuccess] = useState('');
   const [profileError, setProfileError] = useState('');
   const [profileSubmitting, setProfileSubmitting] = useState(false);
+  const [subError, setSubError] = useState('');
+  const [subSuccess, setSubSuccess] = useState('');
 
   // WhatsApp Mocking states
   const [sendingWhatsapp, setSendingWhatsapp] = useState(false);
   const [whatsappResult, setWhatsappResult] = useState('');
 
   const fetchDashboardData = async () => {
+    // 1. Fetch Stats & Subscriptions first (Critical path)
     try {
-      const [subsRes, ordersRes, dispatchesRes, aiRes, profileRes, notificationsRes] = await Promise.all([
-        API.get('/subscriptions'),
+      const [statsRes, subsRes] = await Promise.all([
+        API.get('/dashboard/customer-stats'),
+        API.get('/subscriptions')
+      ]);
+      setCustomerStats(statsRes.data);
+      setSubscriptions(subsRes.data.subscriptions || []);
+      setLoadingStats(false);
+    } catch (err) {
+      console.error('Error fetching customer stats/subs:', err);
+      setLoadingStats(false);
+    }
+
+    // 2. Fetch Recent Orders & Dispatches afterward
+    try {
+      const [ordersRes, dispatchesRes] = await Promise.all([
         API.get('/orders'),
-        API.get('/dispatches'),
+        API.get('/dispatches')
+      ]);
+      setOrders(ordersRes.data.orders || []);
+      setDispatches(dispatchesRes.data.dispatches?.filter(d => d.dispatch_status !== 'delivered') || []);
+      setLoadingOrders(false);
+    } catch (err) {
+      console.error('Error fetching orders:', err);
+      setLoadingOrders(false);
+    }
+
+    // 3. Fetch Notifications, Recommendations, and Profile in background
+    try {
+      const [aiRes, profileRes, notificationsRes] = await Promise.all([
         API.get('/recommendations'),
         API.get('/auth/profile'),
         API.get('/notifications')
       ]);
-
-      setSubscriptions(subsRes.data.subscriptions || []);
-      setOrders(ordersRes.data.orders || []);
-      setDispatches(dispatchesRes.data.dispatches.filter(d => d.dispatch_status !== 'delivered') || []);
       setAiData(aiRes.data || null);
       setNotifications(notificationsRes.data.notifications || []);
+      setLoadingNotifications(false);
 
       if (profileRes.data.user) {
         const u = profileRes.data.user;
@@ -56,9 +85,8 @@ const CustomerDashboard = () => {
         setProfileAddress(u.address || '');
       }
     } catch (err) {
-      console.error('Error fetching dashboard data:', err);
-    } finally {
-      setLoading(false);
+      console.error('Error background loading dashboard:', err);
+      setLoadingNotifications(false);
     }
   };
 
@@ -93,12 +121,16 @@ const CustomerDashboard = () => {
   };
 
   const handleToggleSubscription = async (id, currentStatus) => {
+    setSubError('');
+    setSubSuccess('');
     try {
       const endpoint = currentStatus === 'active' ? `/subscriptions/${id}/pause` : `/subscriptions/${id}/resume`;
-      await API.put(endpoint);
+      const res = await API.put(endpoint);
+      setSubSuccess(res.data.message || `Subscription ${currentStatus === 'active' ? 'paused' : 'resumed'} successfully.`);
       fetchDashboardData();
     } catch (err) {
       console.error('Error toggling subscription:', err);
+      setSubError(err.response?.data?.error || `Failed to ${currentStatus === 'active' ? 'pause' : 'resume'} subscription.`);
     }
   };
 
@@ -149,8 +181,15 @@ const CustomerDashboard = () => {
     }
   };
 
-  if (loading) {
-    return <div className="text-center py-20 text-warmgray-400">Loading your dashboard...</div>;
+  if (loadingStats) {
+    return (
+      <div className="flex items-center justify-center min-h-[calc(100vh-64px)] text-warmgray-400 dark:text-warmgray-500 font-medium">
+        <div className="flex flex-col items-center space-y-2">
+          <div className="w-8 h-8 border-4 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
+          <span className="text-sm">Loading your dashboard...</span>
+        </div>
+      </div>
+    );
   }
 
   const activeSubs = subscriptions.filter(s => s.status === 'active');
@@ -164,6 +203,7 @@ const CustomerDashboard = () => {
   if (profileAddress) profileCompletion += 34;
 
   const totalSavings = activeSubs.reduce((sum, s) => sum + Math.round((s.product_price || 0) * 0.15), 0);
+  const membership = calculateMembership(subscriptions, orders);
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8 animate-fadein">
@@ -173,8 +213,9 @@ const CustomerDashboard = () => {
         <div className="space-y-1">
           <h1 className="text-3xl font-extrabold text-warmgray-900 font-display dark:text-white">Welcome, {profileName}!</h1>
           <p className="text-sm text-warmgray-600 dark:text-warmgray-300">We're glad to have you back! Handcrafted traditional southern delicacies prepared with love.</p>
-          <span className="inline-block mt-2 px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full bg-brand-500 text-white shadow-sm">
-            {activeSubs.length > 0 ? '👑 Premium Subscription Member' : '🌱 Standard Member'}
+          <span className={`inline-flex items-center space-x-1 mt-2 px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full shadow-sm ${membership.currentTier.badgeClass}`}>
+            <span>{membership.currentTier.icon}</span>
+            <span>{membership.currentTier.name}</span>
           </span>
         </div>
         <Link
@@ -193,8 +234,8 @@ const CustomerDashboard = () => {
             <RefreshCw className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-2xl font-black text-warmgray-900 dark:text-white">{activeSubs.length}</p>
-            <p className="text-[10px] font-bold text-warmgray-450 uppercase tracking-widest">Active Subscriptions</p>
+            <p className="text-2xl font-black text-warmgray-900 dark:text-white">{customerStats?.activeSubscriptionsCount ?? 0}</p>
+            <p className="text-[10px] font-bold text-warmgray-455 uppercase tracking-widest">Active Subscriptions</p>
           </div>
         </div>
         <div className="bg-white p-5 rounded-3xl border border-warmgray-100 shadow-sm dark:bg-warmgray-805 dark:border-warmgray-700 flex items-center space-x-4">
@@ -202,8 +243,8 @@ const CustomerDashboard = () => {
             <ClipboardList className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-2xl font-black text-warmgray-900 dark:text-white">{orders.length}</p>
-            <p className="text-[10px] font-bold text-warmgray-450 uppercase tracking-widest">Total Orders Placed</p>
+            <p className="text-2xl font-black text-warmgray-900 dark:text-white">{customerStats?.totalOrdersCount ?? 0}</p>
+            <p className="text-[10px] font-bold text-warmgray-455 uppercase tracking-widest">Total Orders Placed</p>
           </div>
         </div>
         <div className="bg-white p-5 rounded-3xl border border-warmgray-100 shadow-sm dark:bg-warmgray-805 dark:border-warmgray-700 flex items-center space-x-4">
@@ -211,7 +252,7 @@ const CustomerDashboard = () => {
             <Calendar className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-2xl font-black text-warmgray-900 dark:text-white">{upcomingDeliveriesCount}</p>
+            <p className="text-2xl font-black text-warmgray-900 dark:text-white">{customerStats?.upcomingDeliveriesCount ?? 0}</p>
             <p className="text-[10px] font-bold text-warmgray-455 uppercase tracking-widest">Upcoming Deliveries</p>
           </div>
         </div>
@@ -220,7 +261,7 @@ const CustomerDashboard = () => {
             <ShieldCheck className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-2xl font-black text-green-600 dark:text-green-400">₹{totalSavings}</p>
+            <p className="text-2xl font-black text-green-600 dark:text-green-400">₹{customerStats?.monthlySavings ?? 0}</p>
             <p className="text-[10px] font-bold text-warmgray-455 uppercase tracking-widest">Monthly Savings</p>
           </div>
         </div>
@@ -229,7 +270,7 @@ const CustomerDashboard = () => {
             <AlertCircle className="w-6 h-6 text-red-650" />
           </div>
           <div>
-            <p className="text-2xl font-black text-red-650">{orders.filter(o => o.status === 'cancelled').length}</p>
+            <p className="text-2xl font-black text-red-650">{customerStats?.cancelledOrdersCount ?? 0}</p>
             <p className="text-[10px] font-bold text-warmgray-455 uppercase tracking-widest">Cancelled Orders</p>
           </div>
         </div>
@@ -278,6 +319,8 @@ const CustomerDashboard = () => {
               <RefreshCw className="w-5 h-5 text-brand-500" />
               <span>Active Subscriptions</span>
             </h2>
+            {subError && <p className="p-3 bg-red-50 text-red-700 text-xs font-semibold rounded-xl border border-red-100 dark:bg-red-950/30 dark:text-red-400 dark:border-red-900/50">{subError}</p>}
+            {subSuccess && <p className="p-3 bg-green-50 text-green-700 text-xs font-semibold rounded-xl border border-green-100 dark:bg-green-950/30 dark:text-green-400 dark:border-green-900/50">{subSuccess}</p>}
             {subscriptions.length === 0 ? (
               <p className="text-xs text-warmgray-405">You have no subscription plans registered.</p>
             ) : (
@@ -322,7 +365,13 @@ const CustomerDashboard = () => {
               <ClipboardList className="w-5 h-5 text-brand-500" />
               <span>Recent Orders</span>
             </h2>
-            {orders.length === 0 ? (
+            {loadingOrders ? (
+              <div className="space-y-3 py-4">
+                <div className="h-6 bg-warmgray-50 dark:bg-warmgray-750 rounded-xl animate-pulse w-full"></div>
+                <div className="h-6 bg-warmgray-50 dark:bg-warmgray-750 rounded-xl animate-pulse w-full"></div>
+                <div className="h-6 bg-warmgray-50 dark:bg-warmgray-750 rounded-xl animate-pulse w-full"></div>
+              </div>
+            ) : orders.length === 0 ? (
               <p className="text-xs text-warmgray-400">No orders found.</p>
             ) : (
               <div className="overflow-x-auto border border-warmgray-100 rounded-2xl dark:border-warmgray-700">
@@ -367,7 +416,7 @@ const CustomerDashboard = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {aiData.recommendations.map(prod => (
                     <div key={prod.id} className="bg-white p-4 rounded-2xl border border-warmgray-100 dark:bg-warmgray-800 dark:border-warmgray-700 flex gap-3">
-                      <img src={prod.image_url} alt={prod.name} className="w-14 h-14 object-cover rounded-xl" />
+                      <img src={prod.image_url} alt={prod.name} className="w-14 h-14 object-cover rounded-xl" loading="lazy" />
                       <div className="flex-1 min-w-0">
                         <h4 className="text-xs font-bold text-warmgray-800 dark:text-white truncate">{prod.name}</h4>
                         <p className="text-[10px] text-warmgray-400">{prod.weight} • ₹{prod.price}</p>
@@ -403,6 +452,93 @@ const CustomerDashboard = () => {
         {/* Right Column (1/3 width) */}
         <div className="space-y-8">
           
+          {/* Membership Rank Widget */}
+          <div className="bg-white p-6 rounded-3xl border border-warmgray-100 shadow-sm dark:bg-warmgray-800 dark:border-warmgray-700 space-y-4">
+            <div className="flex items-center justify-between border-b border-warmgray-50 dark:border-warmgray-700 pb-3">
+              <h3 className="text-sm font-bold font-display text-warmgray-900 dark:text-white flex items-center space-x-1.5">
+                <Star className="w-4 h-4 text-brand-500 fill-brand-500" />
+                <span>Membership Rank</span>
+              </h3>
+              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${membership.currentTier.badgeClass}`}>
+                {membership.currentTier.icon} {membership.currentTier.name}
+              </span>
+            </div>
+
+            {/* Progress to Next Rank */}
+            {membership.nextTier ? (
+              <div className="space-y-2">
+                <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider text-warmgray-500">
+                  <span>Progress to {membership.nextTier.name}</span>
+                  <span className="text-brand-500 font-extrabold">{membership.progress}%</span>
+                </div>
+                <div className="w-full bg-warmgray-100 h-2 rounded-full dark:bg-warmgray-950 overflow-hidden">
+                  <div 
+                    className="bg-gradient-to-r from-brand-400 to-brand-600 h-full rounded-full transition-all duration-500" 
+                    style={{ width: `${membership.progress}%` }}
+                  ></div>
+                </div>
+                
+                {/* Criteria breakdown */}
+                <div className="grid grid-cols-3 gap-1.5 pt-1 text-center">
+                  <div className="bg-warmgray-50 dark:bg-warmgray-900 p-1.5 rounded-xl border border-warmgray-100 dark:border-warmgray-750">
+                    <p className="text-[8px] text-warmgray-400 uppercase font-bold tracking-wider">Subs</p>
+                    <p className="text-[10px] font-black text-warmgray-700 dark:text-white mt-0.5">
+                      {membership.criteriaProgress.subscriptions.current}/{membership.criteriaProgress.subscriptions.target}
+                    </p>
+                  </div>
+                  <div className="bg-warmgray-50 dark:bg-warmgray-900 p-1.5 rounded-xl border border-warmgray-100 dark:border-warmgray-750">
+                    <p className="text-[8px] text-warmgray-400 uppercase font-bold tracking-wider">Orders</p>
+                    <p className="text-[10px] font-black text-warmgray-700 dark:text-white mt-0.5">
+                      {membership.criteriaProgress.orders.current}/{membership.criteriaProgress.orders.target}
+                    </p>
+                  </div>
+                  <div className="bg-warmgray-50 dark:bg-warmgray-900 p-1.5 rounded-xl border border-warmgray-100 dark:border-warmgray-750">
+                    <p className="text-[8px] text-warmgray-400 uppercase font-bold tracking-wider">Spending</p>
+                    <p className="text-[10px] font-black text-warmgray-700 dark:text-white mt-0.5">
+                      ₹{membership.criteriaProgress.spending.current}/₹{membership.criteriaProgress.spending.target}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Encouragement description */}
+                <p className="text-[10px] text-warmgray-500 dark:text-warmgray-400 leading-normal text-center font-medium">
+                  {(() => {
+                    const next = membership.nextTier;
+                    const needSubs = Math.max(0, next.thresholds.subscriptions - membership.stats.subscriptions);
+                    const needOrders = Math.max(0, next.thresholds.orders - membership.stats.orders);
+                    const needSpend = Math.max(0, next.thresholds.spending - membership.stats.spending);
+                    const requirementsList = [];
+                    if (needSubs > 0) requirementsList.push(`${needSubs} more subscription${needSubs > 1 ? 's' : ''}`);
+                    if (needOrders > 0) requirementsList.push(`${needOrders} more order${needOrders > 1 ? 's' : ''}`);
+                    if (needSpend > 0) requirementsList.push(`₹${needSpend} spent`);
+                    return `Requirement: Add ${requirementsList.join(', or ')} to reach ${next.name}.`;
+                  })()}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-1.5 text-center py-1">
+                <div className="inline-block p-2 bg-brand-50 dark:bg-brand-950/20 text-brand-500 rounded-full animate-bounce">
+                  <Sparkles className="w-5 h-5 fill-current" />
+                </div>
+                <p className="text-xs font-bold text-brand-600 dark:text-brand-400">🎉 Premium Member Achieved!</p>
+                <p className="text-[10px] text-warmgray-450 dark:text-warmgray-400">You've unlocked the highest tier of rewards and VIP support.</p>
+              </div>
+            )}
+
+            {/* Active Rank Benefits */}
+            <div className="pt-2 border-t border-warmgray-50 dark:border-warmgray-700 space-y-2">
+              <p className="text-[10px] font-bold text-warmgray-400 uppercase tracking-widest">Active Benefits:</p>
+              <ul className="space-y-1.5">
+                {membership.currentTier.benefits.map((benefit, idx) => (
+                  <li key={idx} className="flex items-start space-x-1.5 text-[10px] text-warmgray-600 dark:text-warmgray-300 leading-tight">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0 mt-0.5" />
+                    <span>{benefit}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
           {/* 7. Quick Actions */}
           <div className="bg-white p-6 rounded-3xl border border-warmgray-100 shadow-sm dark:bg-warmgray-800 dark:border-warmgray-700 space-y-4">
             <h3 className="text-sm font-bold font-display text-warmgray-900 dark:text-white border-b border-warmgray-50 dark:border-warmgray-700 pb-3">Quick Actions</h3>
@@ -436,7 +572,12 @@ const CustomerDashboard = () => {
               <Bell className="w-4.5 h-4.5 text-brand-500" />
               <span>Notifications Panel</span>
             </h3>
-            {notifications.length === 0 ? (
+            {loadingNotifications ? (
+              <div className="space-y-3 py-2">
+                <div className="h-10 bg-warmgray-50 dark:bg-warmgray-750 rounded-xl animate-pulse w-full"></div>
+                <div className="h-10 bg-warmgray-50 dark:bg-warmgray-750 rounded-xl animate-pulse w-full"></div>
+              </div>
+            ) : notifications.length === 0 ? (
               <p className="text-xs text-warmgray-400">No new alerts or reminders.</p>
             ) : (
               <div className="space-y-3 max-h-60 overflow-y-auto pr-1">

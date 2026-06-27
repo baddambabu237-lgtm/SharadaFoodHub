@@ -17,6 +17,20 @@ router.get('/', authenticateToken, async (req, res) => {
   }
 });
 
+// Mark all notifications as read for current user
+router.put('/read-all', authenticateToken, async (req, res) => {
+  try {
+    await query.run(
+      'UPDATE notifications SET is_read = true WHERE user_id = ? AND is_read = false',
+      [req.user.id]
+    );
+    res.status(200).json({ message: 'All notifications marked as read' });
+  } catch (err) {
+    console.error('Mark all read error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Mark notification as read
 router.put('/:id/read', authenticateToken, async (req, res) => {
   try {
@@ -31,10 +45,32 @@ router.put('/:id/read', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Unauthorized' });
     }
 
-    await query.run('UPDATE notifications SET is_read = 1 WHERE id = ?', [id]);
+    await query.run('UPDATE notifications SET is_read = true WHERE id = ?', [id]);
     res.status(200).json({ message: 'Notification marked as read' });
   } catch (err) {
     console.error('Update notification error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Delete individual notification
+router.delete('/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const notification = await query.get('SELECT * FROM notifications WHERE id = ?', [id]);
+
+    if (!notification) {
+      return res.status(404).json({ error: 'Notification not found' });
+    }
+
+    if (notification.user_id !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    await query.run('DELETE FROM notifications WHERE id = ?', [id]);
+    res.status(200).json({ message: 'Notification deleted successfully' });
+  } catch (err) {
+    console.error('Delete notification error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

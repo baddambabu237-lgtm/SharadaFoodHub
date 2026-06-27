@@ -1,12 +1,13 @@
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 
 const ProtectedRoute = ({ children, adminOnly = false, customerOnly = false }) => {
   const token = localStorage.getItem('sharadha_token');
   const userStr = localStorage.getItem('sharadha_user');
   const user = userStr ? JSON.parse(userStr) : null;
+  const location = useLocation();
 
   if (!token) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   if (adminOnly && user?.role !== 'admin') {
